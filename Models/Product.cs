@@ -1,3 +1,5 @@
+using InventoryManagementApi.Models;
+
 namespace InventoryApi.Models
 {
     public class Product
@@ -9,6 +11,6 @@ namespace InventoryApi.Models
         public int StockQuantity { get; set; }
 
         // one product can appear in many order items
-        public ICollection<OrderItems> OrderItems { get; set; } = new List<OrderItem>();
+        public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
     }
 }

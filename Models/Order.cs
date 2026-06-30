@@ -1,11 +1,5 @@
 ﻿namespace InventoryManagementApi.Models
 {
-    public enum OrderStatus
-    {
-        Pending,
-        Confirmed,
-        Canceled
-    }
     public class Order
     {
         public int Id { get; set; }
@@ -15,5 +9,12 @@
 
         // one order has many order items
         public ICollection<OrderItem> OrderItems { get; set; } = new List<OrderItem>();
+    }
+
+    public enum OrderStatus
+    {
+        Pending,
+        Confirmed,
+        Canceled
     }
 }
