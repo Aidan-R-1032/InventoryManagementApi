@@ -43,9 +43,6 @@ namespace InventoryManagementApi.Data
                     .IsRequired()
                     .HasMaxLength(200);
 
-                entity.Property(o => o.OrderDate)
-                    .HasDefaultValue("CURRENT_TIMESTAMP");
-
                 entity.Property(o => o.Status)
                     .HasConversion<string>();
             });
@@ -55,7 +52,7 @@ namespace InventoryManagementApi.Data
                 entity.HasKey(oi => oi.Id);
 
                 entity.Property(oi => oi.UnitPriceAtOrderTime)
-                    .HasColumnType("decimal(18,2");
+                    .HasColumnType("decimal(18,2)");
 
                 // OrderItem (many) => Order (one)
                 entity.HasOne(oi => oi.Order)
