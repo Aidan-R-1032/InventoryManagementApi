@@ -1,5 +1,4 @@
-﻿using InventoryApi.Models;
-using InventoryManagementApi.Models;
+﻿using InventoryManagementApi.Models;
 
 namespace InventoryManagementApi.Services
 {

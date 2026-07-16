@@ -1,5 +1,4 @@
-﻿using InventoryApi.Models;
-using InventoryManagementApi.Data;
+﻿using InventoryManagementApi.Data;
 using InventoryManagementApi.Models;
 using Microsoft.EntityFrameworkCore;
 

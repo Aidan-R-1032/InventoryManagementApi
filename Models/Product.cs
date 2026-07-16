@@ -1,6 +1,6 @@
 using InventoryManagementApi.Models;
 
-namespace InventoryApi.Models
+namespace InventoryManagementApi.Models
 {
     public class Product
     {

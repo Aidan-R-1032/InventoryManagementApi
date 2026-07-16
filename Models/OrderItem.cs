@@ -1,4 +1,4 @@
-﻿using InventoryApi.Models;
+﻿using InventoryManagementApi.Models;
 
 namespace InventoryManagementApi.Models
 {
