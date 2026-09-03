@@ -1,6 +1,8 @@
 using InventoryManagementApi.Data;
 using InventoryManagementApi.Services;
 using Microsoft.EntityFrameworkCore;
+using InventoryManagementApi.Endpoints;
+using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,15 +25,26 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
-    db.Database.MigrateAsync().Wait();
+    var env = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+
+    if (!env.IsEnvironment("Testing"))
+        db.Database.MigrateAsync().Wait();
 }
 
 // Configure the HTTP request pipeline.
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
+    app.MapScalarApiReference(options =>
+    {
+        options.OpenApiRoutePattern = "/openapi/v1.json";
+    });
 }
 
 app.UseHttpsRedirection();
+app.MapProductEndpoints();
+app.MapOrderEndpoints();
 
 app.Run();
+
+public partial class Program { }
