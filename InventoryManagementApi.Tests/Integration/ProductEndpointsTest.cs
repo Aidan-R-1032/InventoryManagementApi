@@ -1,43 +1,63 @@
-using InventoryManagementApi.Data;
-using InventoryManagementApi.Dtos;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using System.Net;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Data.Sqlite;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using InventoryManagementApi.Data;
+using InventoryManagementApi.Dtos;
 
 namespace InventoryManagementApi.Tests.Integration
 {
-    public class ProductEndpointsTests : IClassFixture<WebApplicationFactory<Program>>
+    public class TestWebApplicationFactory : WebApplicationFactory<Program>
     {
-        private readonly WebApplicationFactory<Program> _factory;
+        private readonly SqliteConnection _connection;
 
-        public ProductEndpointsTests(WebApplicationFactory<Program> factory)
+        public TestWebApplicationFactory()
         {
-            _factory = factory.WithWebHostBuilder(builder =>
+            _connection = new SqliteConnection("DataSource=:memory:");
+            _connection.Open();
+        }
+
+        protected override void ConfigureWebHost(IWebHostBuilder builder)
+        {
+            builder.UseEnvironment("Testing");
+            builder.ConfigureServices(services =>
             {
-                builder.UseEnvironment("Testing");
-                builder.ConfigureServices(services =>
-                {
-                    var descriptorsToRemove = services
-                        .Where(d =>
-                            d.ServiceType == typeof(DbContextOptions<InventoryDbContext>) ||
-                            d.ServiceType == typeof(InventoryDbContext) ||
-                            (d.ServiceType.IsGenericType &&
-                             d.ServiceType.GetGenericTypeDefinition() == typeof(DbContextOptions<>)))
-                        .ToList();
+                // Remove all EF Core registrations
+                var toRemove = services.Where(d =>
+                    d.ServiceType.Namespace != null &&
+                    (d.ServiceType.Namespace.StartsWith("Microsoft.EntityFrameworkCore") ||
+                     d.ServiceType == typeof(InventoryDbContext)))
+                    .ToList();
 
-                    foreach (var descriptor in descriptorsToRemove)
-                        services.Remove(descriptor);
+                foreach (var d in toRemove)
+                    services.Remove(d);
 
-                    services.AddDbContext<InventoryDbContext>(options =>
-                        options.UseInMemoryDatabase(Guid.NewGuid().ToString()));
-                });
+                // Register with in-memory SQLite using shared connection
+                services.AddDbContext<InventoryDbContext>(options =>
+                    options.UseSqlite(_connection));
+
+                // Create schema
+                var sp = services.BuildServiceProvider();
+                using var scope = sp.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+                db.Database.EnsureCreated();
             });
         }
 
-        private HttpClient CreateClient() => _factory.CreateClient();
+        protected override void Dispose(bool disposing)
+        {
+            base.Dispose(disposing);
+            _connection.Close();
+        }
+    }
+
+    public class ProductEndpointsTests
+    {
+        private HttpClient CreateClient() =>
+            new TestWebApplicationFactory().CreateClient();
 
         private async Task<ProductResponseDto> CreateTestProductAsync(
             HttpClient client,
@@ -55,14 +75,11 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task CreateProduct_ValidRequest_Returns201()
         {
-            // Arrange
             var client = CreateClient();
             var dto = new CreateProductDto("Widget", "WGT-001", 9.99m, 100);
 
-            // Act
             var response = await client.PostAsJsonAsync("/api/products", dto);
 
-            // Assert
             Assert.Equal(HttpStatusCode.Created, response.StatusCode);
             var product = await response.Content.ReadFromJsonAsync<ProductResponseDto>();
             Assert.NotNull(product);
@@ -73,44 +90,35 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task CreateProduct_DuplicateSku_Returns409()
         {
-            // Arrange
             var client = CreateClient();
             await CreateTestProductAsync(client);
 
-            // Act — try to create another product with the same SKU
             var dto = new CreateProductDto("Another Widget", "WGT-001", 14.99m, 50);
             var response = await client.PostAsJsonAsync("/api/products", dto);
 
-            // Assert
             Assert.Equal(HttpStatusCode.Conflict, response.StatusCode);
         }
 
         [Fact]
         public async Task CreateProduct_EmptyName_Returns400()
         {
-            // Arrange
             var client = CreateClient();
             var dto = new CreateProductDto("", "WGT-001", 9.99m, 100);
 
-            // Act
             var response = await client.PostAsJsonAsync("/api/products", dto);
 
-            // Assert
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
 
         [Fact]
         public async Task GetAllProducts_ReturnsProducts()
         {
-            // Arrange
             var client = CreateClient();
             await CreateTestProductAsync(client, "Apple", "APL-001");
             await CreateTestProductAsync(client, "Banana", "BAN-001");
 
-            // Act
             var response = await client.GetAsync("/api/products");
 
-            // Assert
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var products = await response.Content.ReadFromJsonAsync<List<ProductResponseDto>>();
             Assert.NotNull(products);
@@ -120,14 +128,11 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task GetProductById_ExistingProduct_Returns200()
         {
-            // Arrange
             var client = CreateClient();
             var created = await CreateTestProductAsync(client);
 
-            // Act
             var response = await client.GetAsync($"/api/products/{created.Id}");
 
-            // Assert
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var product = await response.Content.ReadFromJsonAsync<ProductResponseDto>();
             Assert.NotNull(product);
@@ -137,29 +142,23 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task GetProductById_NonExistentProduct_Returns404()
         {
-            // Arrange
             var client = CreateClient();
 
-            // Act
             var response = await client.GetAsync("/api/products/999");
 
-            // Assert
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
 
         [Fact]
         public async Task UpdateStock_ValidRequest_Returns200WithUpdatedStock()
         {
-            // Arrange
             var client = CreateClient();
             var created = await CreateTestProductAsync(client);
             var dto = new UpdateStockDto(50);
 
-            // Act
             var response = await client.PatchAsJsonAsync(
                 $"/api/products/{created.Id}/stock", dto);
 
-            // Assert
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
             var product = await response.Content.ReadFromJsonAsync<ProductResponseDto>();
             Assert.NotNull(product);
@@ -169,27 +168,21 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task DeleteProduct_ExistingProduct_Returns204()
         {
-            // Arrange
             var client = CreateClient();
             var created = await CreateTestProductAsync(client);
 
-            // Act
             var response = await client.DeleteAsync($"/api/products/{created.Id}");
 
-            // Assert
             Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         }
 
         [Fact]
         public async Task DeleteProduct_NonExistentProduct_Returns404()
         {
-            // Arrange
             var client = CreateClient();
 
-            // Act
             var response = await client.DeleteAsync("/api/products/999");
 
-            // Assert
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
         }
     }
