@@ -1,4 +1,7 @@
 <Solution>
-  <Project Path="InventoryManagementApi.Tests/InventoryManagementApi.Tests.csproj" />
-  <Project Path="InventoryManagementApi/InventoryManagementApi.csproj" />
+  <Folder Name="/Solution Items/">
+    <File Path="appsettings.Testing.json" />
+  </Folder>
+  <Project Path="D:/C_Sharp_Projects/InventoryManagement/InventoryManagementApi.Tests/InventoryManagementApi.Tests.csproj" />
+  <Project Path="D:/C_Sharp_Projects/InventoryManagement/InventoryManagementApi/InventoryManagementApi.csproj" />
 </Solution>
