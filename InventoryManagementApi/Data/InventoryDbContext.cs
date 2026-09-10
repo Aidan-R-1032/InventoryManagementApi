@@ -13,6 +13,8 @@ namespace InventoryManagementApi.Data
         public DbSet<Order> Orders { get; set; } = null;
         public DbSet<OrderItem> OrderItems { get; set; } = null;
 
+        public DbSet<User> Users { get; set; } = null!;
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Product>(entity =>
@@ -64,6 +66,31 @@ namespace InventoryManagementApi.Data
                     .WithMany(p => p.OrderItems)
                     .HasForeignKey(oi => oi.ProductId)
                     .OnDelete(DeleteBehavior.Restrict);         // products cannot be deleted if its already ordered (for historical orders)
+            });
+
+            modelBuilder.Entity<User>(entity =>
+            {
+                entity.HasKey(u => u.Id);
+
+                entity.Property(u => u.Username)
+                    .IsRequired()
+                    .HasMaxLength(50);
+
+                entity.Property(u => u.Email)
+                    .IsRequired()
+                    .HasMaxLength(200);
+
+                entity.HasIndex(u => u.Email)
+                    .IsUnique();
+
+                entity.HasIndex(u => u.Username)
+                    .IsUnique();
+
+                entity.Property(u => u.PasswordHash)
+                    .IsRequired();
+
+                entity.Property(u => u.Role)
+                    .HasConversion<string>();
             });
         }
     }
