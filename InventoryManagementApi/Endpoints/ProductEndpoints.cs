@@ -11,16 +11,17 @@ namespace InventoryManagementApi.Endpoints
             var group = app.MapGroup("/api/products")
                 .WithTags("Products");
 
-            // GET all products
+            // GET all products - Staff AND Admin can view
             group.MapGet("/", async (IProductService productService) =>
             {
                 var products = await productService.GetAllProductsAsync();
                 return Results.Ok(products.Select(DtoMapper.ToProductResponse));
             })
             .WithName("GetAllProducts")
-            .WithSummary("Get all products ordered by name");
+            .WithSummary("Get all products ordered by name")
+            .RequireAuthorization("AdminOrStaff");
 
-            // GET product by ID
+            // GET product by ID - Staff AND Admin can view
             group.MapGet("/{id:int}", async (int id, IProductService productService) =>
             {
                 var product = await productService.GetProductByIdAsync(id);
@@ -29,9 +30,10 @@ namespace InventoryManagementApi.Endpoints
                     : Results.Ok(DtoMapper.ToProductResponse(product));
             })
             .WithName("GetProductById")
-            .WithSummary("Get a product by ID");
+            .WithSummary("Get a product by ID")
+            .RequireAuthorization("AdminOrStaff");
 
-            // GET product by SKU
+            // GET product by SKU - Staff AND Admin can view
             group.MapGet("/sku/{sku}", async (string sku, IProductService productService) =>
             {
                 var product = await productService.GetProductBySkuAsync(sku);
@@ -40,9 +42,10 @@ namespace InventoryManagementApi.Endpoints
                     : Results.Ok(DtoMapper.ToProductResponse(product));
             })
             .WithName("GetProductBySku")
-            .WithSummary("Get a product by SKU");
+            .WithSummary("Get a product by SKU")
+            .RequireAuthorization("AdminOrStaff");
 
-            // POST create product
+            // POST create product - Admin ONLY
             group.MapPost("/", async (CreateProductDto? dto, IProductService productService) =>
             {
                 if (dto is null)
@@ -70,9 +73,10 @@ namespace InventoryManagementApi.Endpoints
                 }
             })
             .WithName("CreateProduct")
-            .WithSummary("Create a new product");
+            .WithSummary("Create a new product")
+            .RequireAuthorization("AdminOnly");
 
-            // PATCH update stock
+            // PATCH update stock - Admin ONLY
             group.MapPatch("/{id:int}/stock", async (int id, UpdateStockDto? dto, IProductService productService) =>
             {
                 if (dto is null)
@@ -91,9 +95,10 @@ namespace InventoryManagementApi.Endpoints
                 }
             })
             .WithName("UpdateStock")
-            .WithSummary("Update stock quantity for a product");
+            .WithSummary("Update stock quantity for a product")
+            .RequireAuthorization();
 
-            // DELETE product
+            // DELETE product - Admin ONLY
             group.MapDelete("/{id:int}", async (int id, IProductService productService) =>
             {
                 try
@@ -110,7 +115,8 @@ namespace InventoryManagementApi.Endpoints
                 }
             })
             .WithName("DeleteProduct")
-            .WithSummary("Delete a product");
+            .WithSummary("Delete a product")
+            .RequireAuthorization("AdminOnly");
         }
     }
 }

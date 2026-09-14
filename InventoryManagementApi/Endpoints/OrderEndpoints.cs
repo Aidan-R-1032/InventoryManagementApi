@@ -10,16 +10,17 @@ namespace InventoryManagementApi.Endpoints
             var group = app.MapGroup("/api/orders")
                 .WithTags("Orders");
 
-            // GET all orders
+            // GET all orders - Staff AND Admin
             group.MapGet("/", async (IOrderService orderService) =>
             {
                 var orders = await orderService.GetAllOrdersAsync();
                 return Results.Ok(orders.Select(DtoMapper.ToOrderResponse));
             })
             .WithName("GetAllOrders")
-            .WithSummary("Get all orders");
+            .WithSummary("Get all orders")
+            .RequireAuthorization("AdminOrStaff");
 
-            // GET order by ID
+            // GET order by ID - Staff AND Admin
             group.MapGet("/{id:int}", async (int id, IOrderService orderService) =>
             {
                 var order = await orderService.GetOrderByIdAsync(id);
@@ -28,9 +29,10 @@ namespace InventoryManagementApi.Endpoints
                     : Results.Ok(DtoMapper.ToOrderResponse(order));
             })
             .WithName("GetOrderById")
-            .WithSummary("Get an order by ID");
+            .WithSummary("Get an order by ID")
+            .RequireAuthorization("AdminOrStaff");
 
-            // POST place order
+            // POST place order - Admin Only
             group.MapPost("/", async (CreateOrderDto? dto, IOrderService orderService) =>
             {
                 if (dto is null)
@@ -57,9 +59,10 @@ namespace InventoryManagementApi.Endpoints
                 }
             })
             .WithName("PlaceOrder")
-            .WithSummary("Place a new order");
+            .WithSummary("Place a new order")
+            .RequireAuthorization("AdminOnly");
 
-            // PATCH cancel order
+            // PATCH cancel order - Admin Only
             group.MapPatch("/{id:int}/cancel", async (int id, IOrderService orderService) =>
             {
                 try
@@ -75,7 +78,8 @@ namespace InventoryManagementApi.Endpoints
                 }
             })
             .WithName("CancelOrder")
-            .WithSummary("Cancel an order and restore stock");
+            .WithSummary("Cancel an order and restore stock")
+            .RequireAuthorization("AdminOnly");
         }
     }
 }
