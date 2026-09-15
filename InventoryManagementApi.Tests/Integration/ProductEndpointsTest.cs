@@ -1,5 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Net.Http.Headers;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Data.Sqlite;
@@ -52,12 +57,44 @@ namespace InventoryManagementApi.Tests.Integration
             base.Dispose(disposing);
             _connection.Close();
         }
+
+        public string GenerateTestToken(string role = "Admin")
+        {
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes("aN0cacp98dvva136nO9m12r7Fx6dK68dbM2V")); // TEMPORARY TESTING KEY
+            var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+            var claims = new[]
+            {
+                new Claim(JwtRegisteredClaimNames.Sub, "1"),
+                new Claim(JwtRegisteredClaimNames.Email, "test@example.com"),
+                new Claim(JwtRegisteredClaimNames.UniqueName, "testUser"),
+                new Claim(ClaimTypes.Role, role),
+                new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+            };
+
+            var token = new JwtSecurityToken(
+                    issuer: "InventoryManagementApi",
+                    audience: "InventoryManagementApiUsers",
+                    claims: claims,
+                    expires: DateTime.UtcNow.AddHours(1),
+                    signingCredentials: credentials
+                );
+            return new JwtSecurityTokenHandler().WriteToken(token);
+        }
     }
 
     public class ProductEndpointsTests
     {
-        private HttpClient CreateClient() =>
-            new TestWebApplicationFactory().CreateClient();
+        private HttpClient CreateClient(string role = "Admin")
+        {
+            var factory = new TestWebApplicationFactory();
+            var client = factory.CreateClient();
+            var token = factory.GenerateTestToken(role);
+            client.DefaultRequestHeaders.Authorization =
+                new AuthenticationHeaderValue("Bearer", token);
+            return client;
+        }
+            
 
         private async Task<ProductResponseDto> CreateTestProductAsync(
             HttpClient client,
@@ -75,7 +112,7 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task CreateProduct_ValidRequest_Returns201()
         {
-            var client = CreateClient();
+            var client = CreateClient("Admin");
             var dto = new CreateProductDto("Widget", "WGT-001", 9.99m, 100);
 
             var response = await client.PostAsJsonAsync("/api/products", dto);
@@ -90,7 +127,7 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task CreateProduct_DuplicateSku_Returns409()
         {
-            var client = CreateClient();
+            var client = CreateClient("Admin");
             await CreateTestProductAsync(client);
 
             var dto = new CreateProductDto("Another Widget", "WGT-001", 14.99m, 50);
@@ -102,7 +139,7 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task CreateProduct_EmptyName_Returns400()
         {
-            var client = CreateClient();
+            var client = CreateClient("Admin");
             var dto = new CreateProductDto("", "WGT-001", 9.99m, 100);
 
             var response = await client.PostAsJsonAsync("/api/products", dto);
@@ -113,7 +150,7 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task GetAllProducts_ReturnsProducts()
         {
-            var client = CreateClient();
+            var client = CreateClient("Admin");
             await CreateTestProductAsync(client, "Apple", "APL-001");
             await CreateTestProductAsync(client, "Banana", "BAN-001");
 
@@ -128,7 +165,7 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task GetProductById_ExistingProduct_Returns200()
         {
-            var client = CreateClient();
+            var client = CreateClient("Admin");
             var created = await CreateTestProductAsync(client);
 
             var response = await client.GetAsync($"/api/products/{created.Id}");
@@ -142,7 +179,7 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task GetProductById_NonExistentProduct_Returns404()
         {
-            var client = CreateClient();
+            var client = CreateClient("Admin");
 
             var response = await client.GetAsync("/api/products/999");
 
@@ -152,7 +189,7 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task UpdateStock_ValidRequest_Returns200WithUpdatedStock()
         {
-            var client = CreateClient();
+            var client = CreateClient("Admin");
             var created = await CreateTestProductAsync(client);
             var dto = new UpdateStockDto(50);
 
@@ -168,7 +205,7 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task DeleteProduct_ExistingProduct_Returns204()
         {
-            var client = CreateClient();
+            var client = CreateClient("Admin");
             var created = await CreateTestProductAsync(client);
 
             var response = await client.DeleteAsync($"/api/products/{created.Id}");
@@ -179,11 +216,33 @@ namespace InventoryManagementApi.Tests.Integration
         [Fact]
         public async Task DeleteProduct_NonExistentProduct_Returns404()
         {
-            var client = CreateClient();
+            var client = CreateClient("Admin");
 
             var response = await client.DeleteAsync("/api/products/999");
 
             Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task CreateProduct_WithStaffRole_Returns403()
+        {
+            var staffClient = CreateClient("Staff");
+            var dto = new CreateProductDto("Widget", "WGT-001", 9.99m, 100);
+
+            var response = await staffClient.PostAsJsonAsync("/api/products", dto);
+
+            Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task GetAllProducts_WithNoToken_Returns401()
+        {
+            var factory = new TestWebApplicationFactory();
+            var client = factory.CreateClient();
+
+            var response = await client.GetAsync("/api/products");
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         }
     }
 }
