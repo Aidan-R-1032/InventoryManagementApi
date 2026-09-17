@@ -3,6 +3,7 @@
 
 ![CI](https://github.com/Aidan-R-1032/InventoryManagementApi/actions/workflows/ci.yml/badge.svg)
 
+## Last Updated: *9/17/2026* 
 
 A RESTful inventory and order management API built with ASP.NET Core Minimal API,
 
@@ -42,8 +43,15 @@ integration testing, and automated CI with GitHub Actions.
 
 - REST endpoints with consistent error responses (400, 404, 409)
 
-- 36 automated tests running on every push via GitHub Actions
+- JWT authentication with bcrypt password hashing
 
+- Role-based authorization (Admin and Staff roles)
+
+- Registration and login endpoints returning signed JWT access tokens
+
+- Vague login error responses to prevent user enumeration
+
+- 45 automated tests running on every push via GitHub Actions
 
 ## Architecture & Design Patterns
 
@@ -159,6 +167,30 @@ dotnet test InventoryManagement.slnx
 
 | PATCH | /api/orders/{id}/cancel | Cancel an order and restore stock |
 
+### Auth
+
+### Auth
+
+| Method | Endpoint | Description | Auth Required |
+
+
+|--------|----------|-------------|---------------|
+
+| POST | /api/auth/register | Register a new user (defaults to Staff role) | No |
+
+| POST | /api/auth/login | Login and receive a JWT token | No |
+
+## Security
+
+- Passwords are hashed with **bcrypt** — plaintext passwords are never stored or logged
+
+- JWT tokens are signed with **HMAC-SHA256** and validated on every request
+
+- Login errors return `401` regardless of whether the email or password was wrong, preventing user enumeration
+
+- Token expiry is configurable via `appsettings.json`
+
+- **Note:** The JWT secret key in `appsettings.json` is for **development only**. In production this should live in environment variables or a secrets manager such as Azure Key Vault
 
 ## Key Design Decisions
 
@@ -266,10 +298,15 @@ Example response:
 
 | Category | Count | Scope |
 
+
 |----------|-------|-------|
 
 | Unit | 27 | Service layer business logic |
 
-| Integration | 9 | Full HTTP pipeline via WebApplicationFactory |
+| Integration — Products | 12 | Full HTTP pipeline including auth |
+
+| Integration — Auth | 9 | Registration, login, token validation |
+
+| **Total** | **45** | **45/45 passing** |
 
 | **Total** | **36** | **36/36 passing** |
