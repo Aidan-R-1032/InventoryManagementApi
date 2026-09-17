@@ -308,5 +308,3 @@ Example response:
 | Integration — Auth | 9 | Registration, login, token validation |
 
 | **Total** | **45** | **45/45 passing** |
-
-| **Total** | **36** | **36/36 passing** |
