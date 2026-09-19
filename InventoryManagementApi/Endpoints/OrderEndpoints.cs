@@ -8,7 +8,8 @@ namespace InventoryManagementApi.Endpoints
         public static void MapOrderEndpoints(this WebApplication app)
         {
             var group = app.MapGroup("/api/orders")
-                .WithTags("Orders");
+                .WithTags("Orders")
+                .RequireRateLimiting("ApiRateLimit");
 
             // GET all orders - Staff AND Admin
             group.MapGet("/", async (IOrderService orderService) =>

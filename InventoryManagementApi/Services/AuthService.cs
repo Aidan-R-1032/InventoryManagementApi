@@ -14,6 +14,43 @@ namespace InventoryManagementApi.Services
         private readonly InventoryDbContext _context;
         private readonly IConfiguration _configuration;
 
+        private static bool IsValidEmail(string email)
+        {
+            try
+            {
+                var addr = new System.Net.Mail.MailAddress(email);
+                return addr.Address == email.ToLower().Trim();
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        private static void ValidatePassword(string password)
+        {
+            if (string.IsNullOrWhiteSpace(password))
+            {
+                throw new ArgumentException("Password cannot be empty.", nameof(password));
+            }
+            if (password.Length < 8)
+            {
+                throw new ArgumentException("Password must be at least 8 characters.", nameof(password));
+            }
+            if (!password.Any(char.IsUpper))
+            {
+                throw new ArgumentException("Password must contain at least one uppercase character.", nameof(password));
+            }
+            if(!password.Any(char.IsDigit))
+            {
+                throw new ArgumentException("Password must contain at least one number.", nameof(password));
+            }
+            if(!password.Any(ch => !char.IsLetterOrDigit(ch)))
+            {
+                throw new ArgumentException("Password must contain at least one special character.", nameof(password));
+            }
+        }
+        
         public AuthService(InventoryDbContext context, IConfiguration configuration)
         {
             _context = context;
@@ -27,27 +64,20 @@ namespace InventoryManagementApi.Services
             {
                 throw new ArgumentException("Username cannot be empty.", nameof(dto));
             }
-            if (string.IsNullOrWhiteSpace(dto.Email))
+            if (string.IsNullOrWhiteSpace(dto.Email) || !IsValidEmail(dto.Email))
             {
                 throw new ArgumentException("Email cannot be empty.", nameof(dto));
             }
-            if (string.IsNullOrWhiteSpace(dto.Password))
-            {
-                throw new ArgumentException("Password cannot be empty.", nameof(dto));
-            }
-            if (dto.Password.Length < 8)
-            {
-                throw new ArgumentException("Password must be at least 8 characters.", nameof(dto));
-            }
+            ValidatePassword(dto.Password);
 
             // user validation
             var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email.ToLower());
-            if (existingUser != null)
+            if (existingUser is not null)
             {
                 throw new InvalidOperationException("A user with this email already exists.");
             }
             var existingUsername = await _context.Users.FirstOrDefaultAsync(u => u.Username == dto.Username.ToLower());
-            if (existingUsername != null)
+            if (existingUsername is not null)
             {
                 throw new InvalidOperationException("This username is already in use.");
             }

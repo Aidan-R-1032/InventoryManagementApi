@@ -9,7 +9,8 @@ namespace InventoryManagementApi.Endpoints
         public static void MapProductEndpoints(this WebApplication app)
         {
             var group = app.MapGroup("/api/products")
-                .WithTags("Products");
+                .WithTags("Products")
+                .RequireRateLimiting("ApiRateLimit");
 
             // GET all products - Staff AND Admin can view
             group.MapGet("/", async (IProductService productService) =>

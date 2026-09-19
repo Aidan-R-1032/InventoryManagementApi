@@ -9,7 +9,8 @@ namespace InventoryManagementApi.Endpoints
         public static void MapAuthEndpoints(this WebApplication app)
         {
             var group = app.MapGroup("/api/auth")
-                .WithTags("Auth");
+                .WithTags("Auth")
+                .RequireRateLimiting("AuthRateLimit");
 
             group.MapPost("/register", async (RegisterDto dto, IAuthService authService) =>
             {
