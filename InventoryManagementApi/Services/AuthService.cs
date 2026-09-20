@@ -113,13 +113,38 @@ namespace InventoryManagementApi.Services
             {
                 throw new ArgumentException("Email and password are required.");
             }
-
-            // user validation
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email.ToLower());
-            if(user is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
+
+            // lockout check before anything else
+            if (user is not null && user.LockoutUntil.HasValue && user.LockoutUntil > DateTime.UtcNow)
             {
+                throw new UnauthorizedAccessException("Invalid email or password.");    // don't mention lockout duration
+            }
+
+            // check to see if user exists and they used the correct password 
+            if (user is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
+            {
+                // Incrementing failed attempts for valid user
+                if(user is not null)
+                {
+                    user.FailedLoginAttempts++;
+
+                    if(user.FailedLoginAttempts >= 5)
+                    {
+                        user.LockoutUntil = DateTime.UtcNow.AddMinutes(5);
+                        user.FailedLoginAttempts = 0;
+                    }
+
+                    await _context.SaveChangesAsync();
+                }
+
                 throw new UnauthorizedAccessException("Invalid email or password.");
             }
+
+            // Successful login - reset failed login attempts
+            user.FailedLoginAttempts = 0;
+            user.LockoutUntil = null;
+            await _context.SaveChangesAsync();
 
             // token generation
             var token = GenerateJwtToken(user);

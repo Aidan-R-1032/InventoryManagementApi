@@ -14,5 +14,7 @@
         public string PasswordHash { get; set; } = string.Empty;
         public UserRole Role { get; set; } = UserRole.Staff;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        public int FailedLoginAttempts { get; set; } = 0;
+        public DateTime? LockoutUntil { get; set; }
     }
 }
