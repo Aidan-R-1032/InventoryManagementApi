@@ -315,8 +315,8 @@ Example response:
 
 | Unit | 27 | Service layer business logic |
 
-| Integration — Products | 12 | Full HTTP pipeline including auth |
+| Integration — Products | 11 | Full HTTP pipeline including auth |
 
-| Integration — Auth | 9 | Registration, login, token validation, password resets |
+| Integration — Auth | 16 | Registration, login, token validation, password resets |
 
 | **Total** | **54** | **54/54 passing** |
