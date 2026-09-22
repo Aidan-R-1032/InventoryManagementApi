@@ -317,6 +317,6 @@ Example response:
 
 | Integration — Products | 12 | Full HTTP pipeline including auth |
 
-| Integration — Auth | 9 | Registration, login, token validation |
+| Integration — Auth | 9 | Registration, login, token validation, password resets |
 
-| **Total** | **45** | **45/45 passing** |
+| **Total** | **54** | **54/54 passing** |
