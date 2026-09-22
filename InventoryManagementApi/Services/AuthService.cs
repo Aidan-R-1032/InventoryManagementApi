@@ -13,7 +13,7 @@ namespace InventoryManagementApi.Services
     {
         private readonly InventoryDbContext _context;
         private readonly IConfiguration _configuration;
-
+        private readonly IEmailService _emailService;
         private static bool IsValidEmail(string email)
         {
             try
@@ -51,10 +51,11 @@ namespace InventoryManagementApi.Services
             }
         }
         
-        public AuthService(InventoryDbContext context, IConfiguration configuration)
+        public AuthService(InventoryDbContext context, IConfiguration configuration, IEmailService emailService)
         {
             _context = context;
             _configuration = configuration;
+            _emailService = emailService;
         }
 
         public async Task<TokenResponseDto> RegisterAsync(RegisterDto dto)
@@ -186,6 +187,80 @@ namespace InventoryManagementApi.Services
                     signingCredentials: credentials
                 );
             return new JwtSecurityTokenHandler().WriteToken(token);
+        }
+
+        public async Task ForgotPasswordAsync(string email)
+        {
+            if(string.IsNullOrEmpty(email))
+            {
+                return;
+            }
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email == email.ToLower());
+
+            if(user is null)
+            {
+                return;
+            }
+
+            // Invalidate any existing unused tokens for this user
+            var existingTokens = await _context.PasswordResetTokens
+                    .Where(t => t.UserId == user.Id && !t.IsUsed && t.ExpiresAt > DateTime.UtcNow)
+                    .ToListAsync();
+            foreach(var existingToken in existingTokens)
+            {
+                existingToken.IsUsed = true;
+            }
+
+            // generates a cryptographically secure random token
+            var tokenBytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+            var token = Convert.ToBase64String(tokenBytes)
+                .Replace("+", "-")
+                .Replace("/", "_")
+                .Replace("=", "");
+
+            var resetToken = new PasswordResetToken
+            {
+                Token = token,
+                UserId = user.Id,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+                IsUsed = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.PasswordResetTokens.Add(resetToken);
+            await _context.SaveChangesAsync();
+
+            await _emailService.SendPasswordResetEmailAsync(user.Email, user.Username, token);
+        }
+
+        public async Task ResetPasswordAsync(string token, string newPassword)
+        {
+            if(string.IsNullOrWhiteSpace(token))
+            {
+                throw new ArgumentException("Reset token is required.");
+            }
+
+            ValidatePassword(newPassword);
+
+            var resetToken = await _context.PasswordResetTokens
+                .Include(t => t.User)
+                .FirstOrDefaultAsync(t => t.Token == token);
+            
+            if (resetToken is null || resetToken.IsUsed || resetToken.ExpiresAt <= DateTime.UtcNow)
+            {
+                throw new ArgumentException("This reset token is invalid or has expired.");
+            }
+
+            // update the password
+            resetToken.User.PasswordHash = BCrypt.Net.BCrypt.HashPassword(newPassword);
+            resetToken.User.FailedLoginAttempts = 0;
+            resetToken.User.LockoutUntil = null;
+
+            // Mark token as used
+            resetToken.IsUsed = true;
+
+            await _context.SaveChangesAsync();
         }
     }
 }

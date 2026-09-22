@@ -12,9 +12,9 @@ namespace InventoryManagementApi.Data
         public DbSet<Product> Products { get; set; } = null;
         public DbSet<Order> Orders { get; set; } = null;
         public DbSet<OrderItem> OrderItems { get; set; } = null;
-
         public DbSet<User> Users { get; set; } = null!;
-
+        public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
+        
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Product>(entity =>
@@ -91,6 +91,22 @@ namespace InventoryManagementApi.Data
 
                 entity.Property(u => u.Role)
                     .HasConversion<string>();
+            });
+
+            modelBuilder.Entity<PasswordResetToken>(entity =>
+            {
+                entity.HasKey(t => t.Id);
+
+                entity.Property(t => t.Token)
+                    .IsRequired();
+
+                entity.HasIndex(t => t.Token)
+                    .IsUnique();
+
+                entity.HasOne(t => t.User)
+                    .WithMany()
+                    .HasForeignKey(t => t.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
         }
     }

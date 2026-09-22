@@ -51,6 +51,34 @@ namespace InventoryManagementApi.Endpoints
                 .WithName("Login")
                 .WithSummary("Login to an existing account and receive JWT token")
                 .AllowAnonymous();
+
+            // Password Recovery Below
+            group.MapPost("/forgot-password", async (ForgotPasswordDto dto, IAuthService authService) =>
+            {
+                await authService.ForgotPasswordAsync(dto.Email);
+                return Results.Ok("If this email is registered, you will receive a reset code.");
+            })
+                .WithName("ForgotPassword")
+                .WithSummary("Request a password reset token")
+                .AllowAnonymous()
+                .RequireRateLimiting("AuthRateLimit");
+
+            group.MapPost("/reset-password", async (ResetPasswordDto dto, IAuthService authService) =>
+            {
+                try
+                {
+                    await authService.ResetPasswordAsync(dto.Token, dto.NewPassword);
+                    return Results.Ok("Password reset successfully.");
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(ex.Message);
+                }
+            })
+                .WithName("ResetPassword")
+                .WithSummary("Reset password using a valid token")
+                .AllowAnonymous()
+                .RequireRateLimiting("AuthRateLimit");
         }
     }
 }

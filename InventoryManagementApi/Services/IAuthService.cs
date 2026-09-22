@@ -8,5 +8,7 @@ namespace InventoryManagementApi.Services
         Task<TokenResponseDto> RegisterAsync(RegisterDto dto);
         Task<TokenResponseDto> LoginAsync(LoginDto dto);
         string GenerateJwtToken(User user);
+        Task ForgotPasswordAsync(string email);
+        Task ResetPasswordAsync(string token, string newPassword);
     }
 }
