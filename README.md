@@ -3,7 +3,7 @@
 
 ![CI](https://github.com/Aidan-R-1032/InventoryManagementApi/actions/workflows/ci.yml/badge.svg)
 
-## Last Updated: *9/17/2026* 
+## Last Updated: *9/22/2026* 
 
 A RESTful inventory and order management API built with ASP.NET Core Minimal API,
 
@@ -189,6 +189,18 @@ dotnet test InventoryManagement.slnx
 - Login errors return `401` regardless of whether the email or password was wrong, preventing user enumeration
 
 - Token expiry is configurable via `appsettings.json`
+  
+- Password reset tokens are single-use and expire after 15 minutes.
+ 
+- Rate limiting is applied to all auth endpoints (5 requests per minute per IP) and general API endpoints (100 requests per minute per IP).
+
+- Account lockout triggers after 5 consecutive failed login attempts for 15 minutes.
+
+### Production Security
+
+- Token revocation is not implemented — JWTs are stateless and valid until expiry. In production, a token blocklist using Redis would be used to invalidate tokens on logout or suspicious activity.
+
+- `Strict-Transport-Security` headers should be configured at the reverse proxy level (nginx, Caddy) in production rather than in the application itself.
 
 - **Note:** The JWT secret key in `appsettings.json` is for **development only**. In production this should live in environment variables or a secrets manager such as Azure Key Vault
 
