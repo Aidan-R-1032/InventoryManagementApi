@@ -51,6 +51,32 @@ namespace InventoryManagementApi.Services
             }
         }
         
+        private string GenerateRefreshToken()
+        {
+            var tokenBytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(64);
+            return Convert.ToBase64String(tokenBytes)
+                .Replace("+", "-")
+                .Replace("/", "_")
+                .Replace("=", "");
+        }
+        
+        private async Task<RefreshToken> CreateRefreshTokenAsync(int userId)
+        {
+            var token = new RefreshToken
+            {
+                Token = GenerateRefreshToken(),
+                UserId = userId,
+                ExpiresAt = DateTime.UtcNow.AddDays(7),
+                isRevoked = false,
+                CreatedAt = DateTime.UtcNow
+            };
+
+
+            _context.RefreshTokens.Add(token);
+            await _context.SaveChangesAsync();
+            return token;
+        }
+
         public AuthService(InventoryDbContext context, IConfiguration configuration, IEmailService emailService)
         {
             _context = context;
@@ -97,9 +123,11 @@ namespace InventoryManagementApi.Services
 
             // token creation
             var token = GenerateJwtToken(user);
+            var refreshToken = await CreateRefreshTokenAsync(user.Id);
             var expiryMinutes = int.Parse(_configuration["Jwt:ExpiryMinutes"]!);
             return new TokenResponseDto(
                     AccessToken: token, 
+                    RefreshToken: refreshToken.Token,
                     TokenType: "Bearer",
                     ExpiresIn: expiryMinutes * 60,
                     Username: user.Username,
@@ -149,10 +177,12 @@ namespace InventoryManagementApi.Services
 
             // token generation
             var token = GenerateJwtToken(user);
+            var refreshToken = await CreateRefreshTokenAsync(user.Id);
             var expiryMinutes = int.Parse(_configuration["Jwt:ExpiryMinutes"]!);
 
             return new TokenResponseDto(
                     AccessToken: token,
+                    RefreshToken: refreshToken.Token,
                     TokenType: "Bearer",
                     ExpiresIn: expiryMinutes * 60,
                     Username: user.Username,
@@ -260,6 +290,84 @@ namespace InventoryManagementApi.Services
             // Mark token as used
             resetToken.IsUsed = true;
 
+            await _context.SaveChangesAsync();
+        }
+
+        public async Task<TokenResponseDto> RefreshTokenAsync(string refreshToken)
+        {
+            if(string.IsNullOrWhiteSpace(refreshToken))
+            {
+                throw new ArgumentException("Refresh token is required.");
+            }
+
+            var existingToken = await _context.RefreshTokens
+                .Include(r => r.User)
+                .FirstOrDefaultAsync(r => r.Token == refreshToken);
+
+            // Detect reuse FIRST
+            if (existingToken is not null && existingToken.ReplacedByToken is not null)
+            {
+                await RevokeTokenFamilyAsync(existingToken.UserId);
+                throw new UnauthorizedAccessException("Invalid or expired refresh token.");
+            }
+
+            // THEN check if revoked
+            if (existingToken is null || existingToken.isRevoked)
+            {
+                throw new UnauthorizedAccessException("Invalid or expired refresh token.");
+            }
+
+
+            // Detect token reuse attacks - token already replaced means potential misuse
+            if (existingToken.ReplacedByToken is not null)
+            {
+                // Revoke the entire token family
+                await RevokeTokenFamilyAsync(existingToken.UserId);
+                throw new UnauthorizedAccessException("Invalid or expired refresh token.");
+            }
+
+            // Rotate - create new refresh token and invalidate old ones
+            var newRefreshToken = await CreateRefreshTokenAsync(existingToken.UserId);
+            existingToken.isRevoked = true;
+            existingToken.ReplacedByToken = newRefreshToken.Token;
+            await _context.SaveChangesAsync();
+
+            var expiryMinutes = int.Parse(_configuration["Jwt:ExpiryMinutes"]!);
+            return new TokenResponseDto(
+                AccessToken: GenerateJwtToken(existingToken.User),
+                RefreshToken: newRefreshToken.Token,
+                TokenType: "Bearer",
+                ExpiresIn: expiryMinutes * 60,
+                Username: existingToken.User.Username,
+                Role: existingToken.User.Role.ToString()
+                );
+        }
+
+        public async Task RevokeTokenAsync(string refreshToken)
+        {
+            if(string.IsNullOrWhiteSpace(refreshToken))
+            {
+                throw new ArgumentException("Refresh token is required.");
+            }
+            var existingToken = await _context.RefreshTokens
+                .FirstOrDefaultAsync(r => r.Token == refreshToken);
+            if(existingToken is null || existingToken.isRevoked)
+            {
+                throw new ArgumentException("Invalid refresh token.");
+            }
+            existingToken.isRevoked = true;
+            await _context.SaveChangesAsync();
+        }
+
+        private async Task RevokeTokenFamilyAsync(int userId)
+        {
+            var activeTokens = await _context.RefreshTokens
+                .Where(r => r.UserId == userId && !r.isRevoked)
+                .ToListAsync();
+            foreach (var token in activeTokens)
+            {
+                token.isRevoked = true;
+            }
             await _context.SaveChangesAsync();
         }
     }

@@ -13,8 +13,9 @@
 
     public record TokenResponseDto(
         string AccessToken,
-        string TokenType,   // will be set to Bearer
-        int ExpiresIn,      // seconds until the token will expire
+        string TokenType,       // will be set to Bearer
+        string RefreshToken,    
+        int ExpiresIn,          // seconds until the token will expire
         string Username,
         string Role
     );
@@ -27,4 +28,7 @@
         string Token, 
         string NewPassword
     );
+
+    public record RefreshTokenDto(string RefreshToken);
+    public record RevokeTokenDto(string RefreshToken);
 }

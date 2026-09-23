@@ -10,5 +10,7 @@ namespace InventoryManagementApi.Services
         string GenerateJwtToken(User user);
         Task ForgotPasswordAsync(string email);
         Task ResetPasswordAsync(string token, string newPassword);
+        Task<TokenResponseDto> RefreshTokenAsync(string refreshToken);
+        Task RevokeTokenAsync(string refreshToken);
     }
 }

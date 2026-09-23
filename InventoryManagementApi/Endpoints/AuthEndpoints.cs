@@ -79,6 +79,44 @@ namespace InventoryManagementApi.Endpoints
                 .WithSummary("Reset password using a valid token")
                 .AllowAnonymous()
                 .RequireRateLimiting("AuthRateLimit");
+
+            group.MapPost("/refresh", async (RefreshTokenDto dto, IAuthService authService) =>
+            {
+                try
+                {
+                    var result = await authService.RefreshTokenAsync(dto.RefreshToken);
+                    return Results.Ok(result);
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    return Results.Unauthorized();
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(ex.Message);
+                }
+            })
+                .WithName("RefreshToken")
+                .WithSummary("Refresh an access token using a valid refresh token")
+                .AllowAnonymous()
+                .RequireRateLimiting("AuthRateLimit");
+
+            group.MapPost("/logout", async (RevokeTokenDto dto, IAuthService authService) =>
+            {
+                try
+                {
+                    await authService.RevokeTokenAsync(dto.RefreshToken);
+                    return Results.Ok("Logged out successfully.");
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(ex.Message);
+                }
+            })
+                .WithName("Logout")
+                .WithSummary("Logout by revoking a refresh token.")
+                .AllowAnonymous()
+                .RequireRateLimiting("AuthRateLimit");
         }
     }
 }

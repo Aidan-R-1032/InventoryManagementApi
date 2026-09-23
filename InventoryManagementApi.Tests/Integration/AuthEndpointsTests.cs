@@ -280,5 +280,153 @@ namespace InventoryManagementApi.Tests.Integration
 
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
+
+        [Fact]
+        public async Task Login_ReturnsRefreshToken()
+        {
+            var client = CreateClient();
+            var registerDto = new RegisterDto("refreshuser", "refresh@example.com", "Password123!");
+            await client.PostAsJsonAsync("/api/auth/register", registerDto);
+
+            var loginDto = new LoginDto("refresh@example.com", "Password123!");
+            var response = await client.PostAsJsonAsync("/api/auth/login", loginDto);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var result = await response.Content.ReadFromJsonAsync<TokenResponseDto>();
+            Assert.NotNull(result);
+            Assert.NotEmpty(result.RefreshToken);
+            Assert.NotEmpty(result.AccessToken);
+        }
+
+        [Fact]
+        public async Task RefreshToken_ValidToken_ReturnsNewTokenPair()
+        {
+            var client = CreateClient();
+            var registerDto = new RegisterDto("refreshuser2", "refresh2@example.com", "Password123!");
+            await client.PostAsJsonAsync("/api/auth/register", registerDto);
+
+            var loginDto = new LoginDto("refresh2@example.com", "Password123!");
+            var loginResponse = await client.PostAsJsonAsync("/api/auth/login", loginDto);
+            var loginResult = await loginResponse.Content.ReadFromJsonAsync<TokenResponseDto>();
+
+            var refreshDto = new RefreshTokenDto(loginResult!.RefreshToken);
+            var response = await client.PostAsJsonAsync("/api/auth/refresh", refreshDto);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            var result = await response.Content.ReadFromJsonAsync<TokenResponseDto>();
+            Assert.NotNull(result);
+            Assert.NotEmpty(result.AccessToken);
+            Assert.NotEmpty(result.RefreshToken);
+            // New refresh token must be different from the old one
+            Assert.NotEqual(loginResult.RefreshToken, result.RefreshToken);
+        }
+
+        [Fact]
+        public async Task RefreshToken_OldTokenIsInvalidatedAfterRotation()
+        {
+            var client = CreateClient();
+            var registerDto = new RegisterDto("refreshuser3", "refresh3@example.com", "Password123!");
+            await client.PostAsJsonAsync("/api/auth/register", registerDto);
+
+            var loginDto = new LoginDto("refresh3@example.com", "Password123!");
+            var loginResponse = await client.PostAsJsonAsync("/api/auth/login", loginDto);
+            var loginResult = await loginResponse.Content.ReadFromJsonAsync<TokenResponseDto>();
+
+            // Use the refresh token once
+            var refreshDto = new RefreshTokenDto(loginResult!.RefreshToken);
+            await client.PostAsJsonAsync("/api/auth/refresh", refreshDto);
+
+            // Try to use the same refresh token again
+            var response = await client.PostAsJsonAsync("/api/auth/refresh", refreshDto);
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task RefreshToken_InvalidToken_Returns401()
+        {
+            var client = CreateClient();
+            var dto = new RefreshTokenDto("this-is-not-a-valid-token");
+
+            var response = await client.PostAsJsonAsync("/api/auth/refresh", dto);
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task RefreshToken_TokenReuseRevokesFamily()
+        {
+            var client = CreateClient();
+            var registerDto = new RegisterDto("familytest", "family@example.com", "Password123!");
+            await client.PostAsJsonAsync("/api/auth/register", registerDto);
+
+            var loginDto = new LoginDto("family@example.com", "Password123!");
+            var loginResponse = await client.PostAsJsonAsync("/api/auth/login", loginDto);
+            var loginResult = await loginResponse.Content.ReadFromJsonAsync<TokenResponseDto>();
+
+            // Rotate once to get a new token
+            var firstRefreshDto = new RefreshTokenDto(loginResult!.RefreshToken);
+            var firstRefreshResponse = await client.PostAsJsonAsync("/api/auth/refresh", firstRefreshDto);
+            var firstRefreshResult = await firstRefreshResponse.Content.ReadFromJsonAsync<TokenResponseDto>();
+
+            // Simulate theft — reuse the original token (which is now replaced)
+            var reuseResponse = await client.PostAsJsonAsync("/api/auth/refresh", firstRefreshDto);
+            Assert.Equal(HttpStatusCode.Unauthorized, reuseResponse.StatusCode);
+
+            // The new token should also be revoked since family was nuked
+            var newTokenDto = new RefreshTokenDto(firstRefreshResult!.RefreshToken);
+            var newTokenResponse = await client.PostAsJsonAsync("/api/auth/refresh", newTokenDto);
+            Assert.Equal(HttpStatusCode.Unauthorized, newTokenResponse.StatusCode);
+        }
+
+        [Fact]
+        public async Task Logout_ValidToken_Returns200()
+        {
+            var client = CreateClient();
+            var registerDto = new RegisterDto("logoutuser", "logout@example.com", "Password123!");
+            await client.PostAsJsonAsync("/api/auth/register", registerDto);
+
+            var loginDto = new LoginDto("logout@example.com", "Password123!");
+            var loginResponse = await client.PostAsJsonAsync("/api/auth/login", loginDto);
+            var loginResult = await loginResponse.Content.ReadFromJsonAsync<TokenResponseDto>();
+
+            var revokeDto = new RevokeTokenDto(loginResult!.RefreshToken);
+            var response = await client.PostAsJsonAsync("/api/auth/logout", revokeDto);
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Logout_RevokedTokenCannotBeRefreshed()
+        {
+            var client = CreateClient();
+            var registerDto = new RegisterDto("logoutuser2", "logout2@example.com", "Password123!");
+            await client.PostAsJsonAsync("/api/auth/register", registerDto);
+
+            var loginDto = new LoginDto("logout2@example.com", "Password123!");
+            var loginResponse = await client.PostAsJsonAsync("/api/auth/login", loginDto);
+            var loginResult = await loginResponse.Content.ReadFromJsonAsync<TokenResponseDto>();
+
+            // Logout
+            var revokeDto = new RevokeTokenDto(loginResult!.RefreshToken);
+            await client.PostAsJsonAsync("/api/auth/logout", revokeDto);
+
+            // Try to refresh with the revoked token
+            var refreshDto = new RefreshTokenDto(loginResult.RefreshToken);
+            var response = await client.PostAsJsonAsync("/api/auth/refresh", refreshDto);
+
+            Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        }
+
+        [Fact]
+        public async Task Logout_InvalidToken_Returns400()
+        {
+            var client = CreateClient();
+            var dto = new RevokeTokenDto("not-a-real-token");
+
+            var response = await client.PostAsJsonAsync("/api/auth/logout", dto);
+
+            Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        }
     }
 }
