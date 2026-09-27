@@ -8,6 +8,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using InventoryManagementApi.Data;
+using InventoryManagementApi.Services;
 
 namespace InventoryManagementApi.Tests.Integration
 {
@@ -21,32 +22,39 @@ namespace InventoryManagementApi.Tests.Integration
             _connection.Open();
         }
 
-        protected override void ConfigureWebHost(IWebHostBuilder builder)
-        {
-            builder.UseEnvironment("Testing");
-            builder.ConfigureServices(services =>
-            {
-                // Remove all EF Core registrations
-                var toRemove = services.Where(d =>
-                    d.ServiceType.Namespace != null &&
-                    (d.ServiceType.Namespace.StartsWith("Microsoft.EntityFrameworkCore") ||
-                     d.ServiceType == typeof(InventoryDbContext)))
-                    .ToList();
+protected override void ConfigureWebHost(IWebHostBuilder builder)
+{
+    builder.UseEnvironment("Testing");
+    builder.ConfigureServices(services =>
+    {
+        // Remove all EF Core registrations
+        var toRemove = services.Where(d =>
+            d.ServiceType.Namespace != null &&
+            (d.ServiceType.Namespace.StartsWith("Microsoft.EntityFrameworkCore") ||
+             d.ServiceType == typeof(InventoryDbContext)))
+            .ToList();
 
-                foreach (var d in toRemove)
-                    services.Remove(d);
+        foreach (var d in toRemove)
+            services.Remove(d);
 
-                // Register with in-memory SQLite using shared connection
-                services.AddDbContext<InventoryDbContext>(options =>
-                    options.UseSqlite(_connection));
+        // Register with in-memory SQLite using shared connection
+        services.AddDbContext<InventoryDbContext>(options =>
+            options.UseSqlite(_connection));
 
-                // Create schema
-                var sp = services.BuildServiceProvider();
-                using var scope = sp.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
-                db.Database.EnsureCreated();
-            });
-        }
+        // Always use ConsoleEmailService in tests — never SmtpEmailService
+        var emailDescriptor = services.SingleOrDefault(
+            d => d.ServiceType == typeof(IEmailService));
+        if (emailDescriptor != null)
+            services.Remove(emailDescriptor);
+        services.AddScoped<IEmailService, ConsoleEmailService>();
+
+        // Create schema
+        var sp = services.BuildServiceProvider();
+        using var scope = sp.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+        db.Database.EnsureCreated();
+    });
+}
 
         protected override void Dispose(bool disposing)
         {
