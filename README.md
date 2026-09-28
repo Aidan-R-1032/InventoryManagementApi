@@ -192,3 +192,12 @@ POST /api/auth/login
 ```
 
 **Use access token:**
+GET /api/products
+Authorization: Bearer eyJ...
+
+**Refresh when access token expires:**
+```json
+POST /api/auth/refresh
+{ "refreshToken": "abc..." }
+→ { "accessToken": "eyJ...(new)", "refreshToken": "xyz...(new)", ... }
+```
