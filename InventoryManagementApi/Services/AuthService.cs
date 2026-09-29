@@ -264,6 +264,72 @@ namespace InventoryManagementApi.Services
             await _emailService.SendPasswordResetEmailAsync(user.Email, user.Username, token);
         }
 
+        public async Task StartDeleteProcessAsync(string email)
+        {
+            if (string.IsNullOrEmpty(email))
+            {
+                return;
+            }
+
+            var user = await _context.Users
+                .FirstOrDefaultAsync(u => u.Email == email.ToLower());
+
+            if (user is null)
+            {
+                return;
+            }
+
+            // Remove any existing unused tokens for this user
+            var existingTokens = await _context.DeleteTokens
+                    .Where(t => t.UserId == user.Id && t.ExpiresAt > DateTime.UtcNow)
+                    .ToListAsync();
+            foreach (var existingToken in existingTokens)
+            {
+                existingToken.IsValid = false;
+            }
+
+            // generates a cryptographically secure random token
+            var tokenBytes = System.Security.Cryptography.RandomNumberGenerator.GetBytes(32);
+            var token = Convert.ToBase64String(tokenBytes)
+                .Replace("+", "-")
+                .Replace("/", "_")
+                .Replace("=", "");
+
+            var deleteToken = new AccountDeleteToken
+            {
+                Token = token,
+                UserId = user.Id,
+                IsValid = true,
+                ExpiresAt = DateTime.UtcNow.AddMinutes(15),
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.DeleteTokens.Add(deleteToken);
+            await _context.SaveChangesAsync();
+
+            await _emailService.SendAccountDeleteEmailAsync(user.Email, user.Username, token);
+        }
+
+        public async Task ConfirmDeleteAccountAsync(string token)
+        {
+            if (string.IsNullOrWhiteSpace(token))
+            {
+                throw new ArgumentException("Deletion token is required.");
+            }
+
+            var deleteToken = await _context.DeleteTokens
+                .Include(t => t.User)
+                .FirstOrDefaultAsync(t => t.Token == token);
+
+            if (deleteToken is null || !deleteToken.IsValid || deleteToken.ExpiresAt <= DateTime.UtcNow)
+            {
+                throw new ArgumentException("This deletion token is invalid or has expired.");
+            }
+
+            // delete the account by Id
+            _context.Users.Remove(deleteToken.User);
+            await _context.SaveChangesAsync();
+        }
+
         public async Task ResetPasswordAsync(string token, string newPassword)
         {
             if(string.IsNullOrWhiteSpace(token))
@@ -292,7 +358,6 @@ namespace InventoryManagementApi.Services
 
             await _context.SaveChangesAsync();
         }
-
         public async Task<TokenResponseDto> RefreshTokenAsync(string refreshToken)
         {
             if(string.IsNullOrWhiteSpace(refreshToken))

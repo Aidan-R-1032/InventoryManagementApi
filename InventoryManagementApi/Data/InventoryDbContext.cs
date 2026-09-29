@@ -15,6 +15,7 @@ namespace InventoryManagementApi.Data
         public DbSet<User> Users { get; set; } = null!;
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
         public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
+        public DbSet<AccountDeleteToken> DeleteTokens { get; set; } = null!;
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -123,6 +124,22 @@ namespace InventoryManagementApi.Data
                 entity.HasOne(r => r.User)
                     .WithMany()
                     .HasForeignKey(r => r.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<AccountDeleteToken>(entity =>
+            {
+                entity.HasKey(d => d.Id);
+
+                entity.Property(d => d.Token)
+                .IsRequired();
+
+                entity.HasIndex(d => d.Token)
+                    .IsUnique();
+
+                entity.HasOne(d => d.User)
+                    .WithMany()
+                    .HasForeignKey(d => d.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
         }

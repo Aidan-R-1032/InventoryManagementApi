@@ -117,6 +117,33 @@ namespace InventoryManagementApi.Endpoints
                 .WithSummary("Logout by revoking a refresh token.")
                 .AllowAnonymous()
                 .RequireRateLimiting("AuthRateLimit");
+
+            group.MapPost("/delete-account", async (DeleteAccountDto dto, IAuthService authService) =>
+            {
+                await authService.StartDeleteProcessAsync(dto.Email);
+                return Results.Ok("If this email is registered, you will receive a deletion token");
+            })
+                .WithName("DeleteAccount")
+                .WithSummary("Request an account deletion token")
+                .AllowAnonymous()
+                .RequireRateLimiting("AuthRateLimit");
+
+            group.MapPost("/confirm-delete", async (ConfirmDeleteDto dto, IAuthService authService) =>
+            {
+                try
+                {
+                    await authService.ConfirmDeleteAccountAsync(dto.DeleteToken);
+                    return Results.Ok("Your account has been successfully deleted");
+                }
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(ex.Message);
+                }
+            })
+                .WithName("ConfirmDeleteAccount")
+                .WithSummary("Delete an account using a valid token")
+                .AllowAnonymous()
+                .RequireRateLimiting("AuthRateLimit");
         }
     }
 }

@@ -23,5 +23,20 @@
 
             return Task.CompletedTask;
         }
+
+        public Task SendAccountDeleteEmailAsync(string toEmail, string username, string deleteToken)
+        {
+            _logger.LogInformation("====== ACCOUNT DELETION ======");
+            _logger.LogInformation("To: {Email}", toEmail);
+            _logger.LogInformation("Username: {Username}", username);
+            _logger.LogInformation("Deletion Token: {Token}", deleteToken);
+            _logger.LogInformation("Token expires in 15 minutes.");
+            _logger.LogInformation("In production, this would send:");
+            _logger.LogInformation("  POST /api/auth/confirm-delete");
+            _logger.LogInformation("  {{ \"token\": \"{Token}\" }}", deleteToken);
+            _logger.LogInformation("==================================");
+
+            return Task.CompletedTask;
+        }
     }
 }

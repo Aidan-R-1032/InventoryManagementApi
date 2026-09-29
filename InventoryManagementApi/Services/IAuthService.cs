@@ -12,5 +12,8 @@ namespace InventoryManagementApi.Services
         Task ResetPasswordAsync(string token, string newPassword);
         Task<TokenResponseDto> RefreshTokenAsync(string refreshToken);
         Task RevokeTokenAsync(string refreshToken);
+
+        Task StartDeleteProcessAsync(string email);
+        Task ConfirmDeleteAccountAsync(string token);
     }
 }
