@@ -16,5 +16,7 @@
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
         public int FailedLoginAttempts { get; set; } = 0;
         public DateTime? LockoutUntil { get; set; }
+        public bool isDeleted { get; set; } = false;
+        public DateTime? DeletedAt { get; set; }
     }
 }

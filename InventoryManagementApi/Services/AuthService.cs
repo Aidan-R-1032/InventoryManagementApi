@@ -97,16 +97,17 @@ namespace InventoryManagementApi.Services
             }
             ValidatePassword(dto.Password);
 
-            // user validation
+
             var existingUser = await _context.Users.FirstOrDefaultAsync(u => u.Email == dto.Email.ToLower());
             if (existingUser is not null)
             {
                 throw new InvalidOperationException("A user with this email already exists.");
             }
+
             var existingUsername = await _context.Users.FirstOrDefaultAsync(u => u.Username == dto.Username.ToLower());
             if (existingUsername is not null)
             {
-                throw new InvalidOperationException("This username is already in use.");
+                throw new InvalidOperationException("This username is already in use or was deleted.");
             }
 
             // new user creation
@@ -149,7 +150,11 @@ namespace InventoryManagementApi.Services
             {
                 throw new UnauthorizedAccessException("Invalid email or password.");    // don't mention lockout duration
             }
-
+            // check to see if the account with the username was previously deleted
+            if (user is null || user.isDeleted)
+            {
+                throw new UnauthorizedAccessException("This account has been deleted and can no longer be used.");
+            }
             // check to see if user exists and they used the correct password 
             if (user is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             {
@@ -192,6 +197,11 @@ namespace InventoryManagementApi.Services
 
         public string GenerateJwtToken(User user)
         {
+            // check if user is already deleted
+            if (user.isDeleted)
+            {
+                throw new InvalidOperationException("Cannot generate a token for a deleted user.");
+            }
             // token data creation
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_configuration["Jwt:Key"]!));
             var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -229,7 +239,8 @@ namespace InventoryManagementApi.Services
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Email == email.ToLower());
 
-            if(user is null)
+            // check to see if the user is valid first
+            if(user is null || user.isDeleted)
             {
                 return;
             }
@@ -274,7 +285,8 @@ namespace InventoryManagementApi.Services
             var user = await _context.Users
                 .FirstOrDefaultAsync(u => u.Email == email.ToLower());
 
-            if (user is null)
+            // check to see if active user first
+            if (user is null || user.isDeleted)
             {
                 return;
             }
@@ -325,9 +337,12 @@ namespace InventoryManagementApi.Services
                 throw new ArgumentException("This deletion token is invalid or has expired.");
             }
 
-            // delete the account by Id
-            _context.Users.Remove(deleteToken.User);
+            // softly delete the user by updating their isDeleted variable to true
+            // after this, user can no longer log into this account and have to make a new one
+            deleteToken.User.isDeleted = true;
+            deleteToken.User.DeletedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+            await RevokeTokenFamilyAsync(deleteToken.User.Id);
         }
 
         public async Task ResetPasswordAsync(string token, string newPassword)
@@ -344,6 +359,12 @@ namespace InventoryManagementApi.Services
                 .FirstOrDefaultAsync(t => t.Token == token);
             
             if (resetToken is null || resetToken.IsUsed || resetToken.ExpiresAt <= DateTime.UtcNow)
+            {
+                throw new ArgumentException("This reset token is invalid or has expired.");
+            }
+
+            // check if the user is deleted
+            if (resetToken.User.isDeleted)
             {
                 throw new ArgumentException("This reset token is invalid or has expired.");
             }
@@ -381,7 +402,12 @@ namespace InventoryManagementApi.Services
             {
                 throw new UnauthorizedAccessException("Invalid or expired refresh token.");
             }
-
+            
+            // check is the User's account has already been deleted
+            if (existingToken.User.isDeleted)
+            {
+                throw new ArgumentException("Invalid or expired refresh token.");
+            }
 
             // Detect token reuse attacks - token already replaced means potential misuse
             if (existingToken.ReplacedByToken is not null)
@@ -415,10 +441,15 @@ namespace InventoryManagementApi.Services
                 throw new ArgumentException("Refresh token is required.");
             }
             var existingToken = await _context.RefreshTokens
+                .Include(r => r.User)
                 .FirstOrDefaultAsync(r => r.Token == refreshToken);
             if(existingToken is null || existingToken.isRevoked)
             {
                 throw new ArgumentException("Invalid refresh token.");
+            }
+            if (existingToken.User.isDeleted)
+            {
+                throw new UnauthorizedAccessException("Invalid refresh token.");
             }
             existingToken.isRevoked = true;
             await _context.SaveChangesAsync();

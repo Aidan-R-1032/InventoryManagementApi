@@ -428,5 +428,108 @@ namespace InventoryManagementApi.Tests.Integration
 
             Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         }
+
+        [Fact]
+        public async Task StartDeletionProcess_ProducesValidDeletionToken()
+        {
+            var factory = new TestWebApplicationFactory();
+            var client = factory.CreateClient();
+
+            var registerDto = new RegisterDto("deleteme", "deleteme@example.com", "Password123!");
+            await client.PostAsJsonAsync("/api/auth/register", registerDto);
+
+            var loginDto = new LoginDto("deleteme@example.com", "Password123!");
+            var loginResponse = await client.PostAsJsonAsync("/api/auth/login", loginDto);
+            var loginResult = await loginResponse.Content.ReadFromJsonAsync<TokenResponseDto>();
+
+            var deleteDto = new DeleteAccountDto("deleteme@example.com");
+            await client.PostAsJsonAsync("/api/auth/delete-account", deleteDto);
+
+            // setup the scope and token retrieval
+            var scope = factory.Services.CreateScope();
+            var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+            var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+            var token = await db.DeleteTokens
+                .OrderByDescending(t => t.CreatedAt)
+                .FirstAsync();
+            var user = await db.Users
+                .OrderByDescending(t => t.CreatedAt)
+                .FirstAsync();
+
+            // confirm token properties
+            Assert.True(token.IsValid);
+            Assert.Equal(token.ExpiresAt.ToString("yyyy-MM-dd HH:mm"), token.CreatedAt.AddMinutes(15).ToString("yyyy-MM-dd HH:mm"));
+            Assert.Equal(token.UserId, user.Id);
+        }
+
+        [Fact]
+        public async Task StartDeletionProccessAsync_InvalidatesOldDeletionTokens()
+        {
+            var factory = new TestWebApplicationFactory();
+            var client = factory.CreateClient();
+
+            var registerDto = new RegisterDto("deleteme", "deleteme@example.com", "Password123!");
+            await client.PostAsJsonAsync("/api/auth/register", registerDto);
+
+            var loginDto = new LoginDto("deleteme@example.com", "Password123!");
+            var loginResponse = await client.PostAsJsonAsync("/api/auth/login", loginDto);
+            var loginResult = await loginResponse.Content.ReadFromJsonAsync<TokenResponseDto>();
+
+            var deleteDto = new DeleteAccountDto("deleteme@example.com");
+            await client.PostAsJsonAsync("/api/auth/delete-account", deleteDto);
+            
+            // submit the deletion request again to generate new token
+            await client.PostAsJsonAsync("/api/auth/delete-account", deleteDto);
+            
+            // setup the scope and token retrieval
+            var scope = factory.Services.CreateScope();
+            var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+            var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+            var tokens = await db.DeleteTokens.OrderBy(t => t.CreatedAt).ToListAsync();
+
+            var oldToken = tokens[0];
+            var newToken = tokens[1];
+
+            Assert.True(!oldToken.IsValid);
+            Assert.True(newToken.IsValid);
+        }
+
+        [Fact]
+        public async Task DeletedAccount_KeptWithIsDeletedSetToTrue()
+        {
+
+            var factory = new TestWebApplicationFactory();
+            var client = factory.CreateClient();
+
+            var registerDto = new RegisterDto("deleteme", "deleteme@example.com", "Password123!");
+            await client.PostAsJsonAsync("/api/auth/register", registerDto);
+
+            var loginDto = new LoginDto("deleteme@example.com", "Password123!");
+            var loginResponse = await client.PostAsJsonAsync("/api/auth/login", loginDto);
+            var loginResult = await loginResponse.Content.ReadFromJsonAsync<TokenResponseDto>();
+
+            var deleteDto = new DeleteAccountDto("deleteme@example.com");
+            await client.PostAsJsonAsync("/api/auth/delete-account", deleteDto);
+
+            // setup the scope and token retrieval
+            var scope = factory.Services.CreateScope();
+            var authService = scope.ServiceProvider.GetRequiredService<IAuthService>();
+            var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+            var token = await db.DeleteTokens
+                .OrderByDescending(t => t.CreatedAt)
+                .FirstAsync();
+
+            // Use deletion token once
+            var confirmationDto = new ConfirmDeleteDto(token.Token);
+            var response = await client.PostAsJsonAsync("/api/auth/confirm-delete", confirmationDto);
+
+            // Retrieve the user and confirm that their account is deleted
+            var user = await db.Users
+                .OrderByDescending(t => t.CreatedAt)
+                .FirstAsync();
+            Assert.True(user.isDeleted);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        }
+
     }
 }

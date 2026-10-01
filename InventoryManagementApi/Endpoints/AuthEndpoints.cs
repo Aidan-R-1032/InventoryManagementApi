@@ -124,7 +124,7 @@ namespace InventoryManagementApi.Endpoints
                 return Results.Ok("If this email is registered, you will receive a deletion token");
             })
                 .WithName("DeleteAccount")
-                .WithSummary("Request an account deletion token")
+                .WithSummary("Request an account deletion token.")
                 .AllowAnonymous()
                 .RequireRateLimiting("AuthRateLimit");
 
@@ -133,7 +133,7 @@ namespace InventoryManagementApi.Endpoints
                 try
                 {
                     await authService.ConfirmDeleteAccountAsync(dto.DeleteToken);
-                    return Results.Ok("Your account has been successfully deleted");
+                    return Results.Ok("Your account has been successfully deleted.");
                 }
                 catch (ArgumentException ex)
                 {
