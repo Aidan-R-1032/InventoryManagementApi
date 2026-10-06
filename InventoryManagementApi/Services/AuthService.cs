@@ -150,10 +150,15 @@ namespace InventoryManagementApi.Services
             {
                 throw new UnauthorizedAccessException("Invalid email or password.");    // don't mention lockout duration
             }
-            // check to see if the account with the username was previously deleted
-            if (user is null || user.isDeleted)
+            // nonexistent email → unauthorized
+            if (user is null)
             {
-                throw new UnauthorizedAccessException("This account has been deleted and can no longer be used.");
+                throw new UnauthorizedAccessException("Invalid email or password.");
+            }
+            // deleted account → bad request
+            if (user.isDeleted)
+            {
+                throw new ArgumentException("This account has been deleted and can no longer be used.");
             }
             // check to see if user exists and they used the correct password 
             if (user is null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
@@ -341,6 +346,7 @@ namespace InventoryManagementApi.Services
             // after this, user can no longer log into this account and have to make a new one
             deleteToken.User.isDeleted = true;
             deleteToken.User.DeletedAt = DateTime.UtcNow;
+            deleteToken.IsValid = false;
             await _context.SaveChangesAsync();
             await RevokeTokenFamilyAsync(deleteToken.User.Id);
         }
@@ -397,16 +403,21 @@ namespace InventoryManagementApi.Services
                 throw new UnauthorizedAccessException("Invalid or expired refresh token.");
             }
 
-            // THEN check if revoked
-            if (existingToken is null || existingToken.isRevoked)
+            if (existingToken is null)
             {
                 throw new UnauthorizedAccessException("Invalid or expired refresh token.");
             }
-            
-            // check is the User's account has already been deleted
+
+            // check if the User's account has already been deleted
             if (existingToken.User.isDeleted)
             {
                 throw new ArgumentException("Invalid or expired refresh token.");
+            }
+
+            // THEN check if revoked
+            if (existingToken.isRevoked)
+            {
+                throw new UnauthorizedAccessException("Invalid or expired refresh token.");
             }
 
             // Detect token reuse attacks - token already replaced means potential misuse
@@ -449,7 +460,7 @@ namespace InventoryManagementApi.Services
             }
             if (existingToken.User.isDeleted)
             {
-                throw new UnauthorizedAccessException("Invalid refresh token.");
+                throw new ArgumentException("Invalid refresh token.");
             }
             existingToken.isRevoked = true;
             await _context.SaveChangesAsync();
