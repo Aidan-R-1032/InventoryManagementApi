@@ -15,5 +15,7 @@ namespace InventoryManagementApi.Services
 
         Task StartDeleteProcessAsync(string email);
         Task ConfirmDeleteAccountAsync(string token);
+
+        Task AlterPermissionsAsync(int adminId, int userId, UserRole newRole);
     }
 }

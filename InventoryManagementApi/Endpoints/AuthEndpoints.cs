@@ -1,6 +1,8 @@
 ﻿using InventoryManagementApi.Dtos;
+using InventoryManagementApi.Models;
 using InventoryManagementApi.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
+using InventoryManagementApi.Extensions;
 
 namespace InventoryManagementApi.Endpoints
 {
@@ -144,6 +146,47 @@ namespace InventoryManagementApi.Endpoints
                 .WithSummary("Delete an account using a valid token")
                 .AllowAnonymous()
                 .RequireRateLimiting("AuthRateLimit");
+
+            group.MapPost("/set-as-admin", async (SetRoleDto dto, IAuthService authService, HttpContext ctx) =>
+            {
+                // Dont trust the client to say who the admin is - look at their JWT instead
+                var promoterId = ctx.User.GetUserId(); 
+
+                try
+                {
+                    await authService.AlterPermissionsAsync(promoterId, dto.UserId, UserRole.Admin);
+                    return Results.Ok("User was given Admin privileges");
+                }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(ex.Message);
+                }
+            })
+                .WithName("SetAsAdmin")
+                .WithSummary("Admins can users to 'Admin' role")
+                .RequireAuthorization("AdminOnly")
+                .RequireRateLimiting("AuthRateLimit");
+
+
+            group.MapPost("/set-as-staff", async (SetRoleDto dto, IAuthService authService, HttpContext ctx) =>
+            {
+                var promoterId = ctx.User.GetUserId();
+
+                try
+                {
+                    await authService.AlterPermissionsAsync(promoterId, dto.UserId, UserRole.Staff);
+                    return Results.Ok("User was given staff privileges");
+                }
+                catch (Exception ex)
+                {
+                    return Results.BadRequest(ex.Message);
+                }
+            })
+                .WithName("SetStaff")
+                .WithSummary("Admins can set users to the 'Staff' role")
+                .RequireAuthorization("AdminOnly")
+                .RequireRateLimiting("AuthRateLimit");
+
         }
     }
 }

@@ -477,5 +477,34 @@ namespace InventoryManagementApi.Services
             }
             await _context.SaveChangesAsync();
         }
+
+        public async Task AlterPermissionsAsync(int adminId, int userId, UserRole newRole)
+        {
+            // Verify that the promoter has admin privileges
+            var admin = await _context.Users
+                .Where(u => u.Id == adminId)
+                .FirstAsync();
+            if(admin is null)
+            {
+                throw new ArgumentException("Admin id does not exist");
+            }
+            if(admin.Role != UserRole.Admin)
+            {
+                throw new UnauthorizedAccessException("The promoter is not an admin");
+            }
+
+            // verify the user to promote exists
+            var user = await _context.Users
+                .Where(u => u.Id == userId)
+                .FirstAsync();
+            if(user is null)
+            {
+                throw new ArgumentException("User id does not exist");
+            }
+
+            // change the user's role
+            user.Role = newRole;
+            await _context.SaveChangesAsync();
+        }
     }
 }

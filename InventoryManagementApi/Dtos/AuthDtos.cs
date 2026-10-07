@@ -33,4 +33,5 @@
     public record RevokeTokenDto(string RefreshToken);
     public record DeleteAccountDto(string Email);
     public record ConfirmDeleteDto(string DeleteToken);
+    public record SetRoleDto(int UserId);
 }
