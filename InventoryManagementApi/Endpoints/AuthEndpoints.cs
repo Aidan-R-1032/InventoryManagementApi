@@ -147,43 +147,30 @@ namespace InventoryManagementApi.Endpoints
                 .AllowAnonymous()
                 .RequireRateLimiting("AuthRateLimit");
 
-            group.MapPost("/set-as-admin", async (SetRoleDto dto, IAuthService authService, HttpContext ctx) =>
-            {
-                // Dont trust the client to say who the admin is - look at their JWT instead
-                var promoterId = ctx.User.GetUserId(); 
-
-                try
-                {
-                    await authService.AlterPermissionsAsync(promoterId, dto.UserId, UserRole.Admin);
-                    return Results.Ok("User was given Admin privileges");
-                }
-                catch (Exception ex)
-                {
-                    return Results.BadRequest(ex.Message);
-                }
-            })
-                .WithName("SetAsAdmin")
-                .WithSummary("Admins can users to 'Admin' role")
-                .RequireAuthorization("AdminOnly")
-                .RequireRateLimiting("AuthRateLimit");
-
-
-            group.MapPost("/set-as-staff", async (SetRoleDto dto, IAuthService authService, HttpContext ctx) =>
+            group.MapPost("/change-role", async (ChangeUserRoleDto dto, IAuthService authService, HttpContext ctx) =>
             {
                 var promoterId = ctx.User.GetUserId();
 
                 try
                 {
-                    await authService.AlterPermissionsAsync(promoterId, dto.UserId, UserRole.Staff);
-                    return Results.Ok("User was given staff privileges");
+                    await authService.AlterPermissionsAsync(promoterId, dto.UserId, dto.NewRole);
+                    return Results.Ok("User role updated successfully.");
                 }
-                catch (Exception ex)
+                catch (UnauthorizedAccessException)
+                {
+                    return Results.Unauthorized();
+                }
+                catch (InvalidOperationException ex)
+                {
+                    return Results.Conflict(ex.Message);
+                }
+                catch (ArgumentException ex)
                 {
                     return Results.BadRequest(ex.Message);
                 }
             })
-                .WithName("SetStaff")
-                .WithSummary("Admins can set users to the 'Staff' role")
+                .WithName("ChangeUserRole")
+                .WithSummary("Admins can change another user's role.")
                 .RequireAuthorization("AdminOnly")
                 .RequireRateLimiting("AuthRateLimit");
 

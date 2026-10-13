@@ -1,4 +1,6 @@
-﻿namespace InventoryManagementApi.Dtos
+﻿using InventoryManagementApi.Models;
+
+namespace InventoryManagementApi.Dtos
 {
     public record RegisterDto(
         string Username,
@@ -33,5 +35,6 @@
     public record RevokeTokenDto(string RefreshToken);
     public record DeleteAccountDto(string Email);
     public record ConfirmDeleteDto(string DeleteToken);
-    public record SetRoleDto(int UserId);
+    public record ChangeUserRoleDto(int UserId, UserRole NewRole);
+
 }

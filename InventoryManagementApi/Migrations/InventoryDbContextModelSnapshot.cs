@@ -196,6 +196,40 @@ namespace InventoryManagementApi.Migrations
                     b.ToTable("RefreshTokens");
                 });
 
+            modelBuilder.Entity("InventoryManagementApi.Models.RoleChangeLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("NewRole")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("OldRole")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PromoterId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("TargetUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("TimeStampUtc")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PromoterId");
+
+                    b.HasIndex("TargetUserId");
+
+                    b.ToTable("RoleChangeLogs");
+                });
+
             modelBuilder.Entity("InventoryManagementApi.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -296,6 +330,21 @@ namespace InventoryManagementApi.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("InventoryManagementApi.Models.RoleChangeLog", b =>
+                {
+                    b.HasOne("InventoryManagementApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("PromoterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("InventoryManagementApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("TargetUserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("InventoryManagementApi.Models.Order", b =>

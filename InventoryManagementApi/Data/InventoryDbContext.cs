@@ -16,7 +16,7 @@ namespace InventoryManagementApi.Data
         public DbSet<PasswordResetToken> PasswordResetTokens { get; set; } = null!;
         public DbSet<RefreshToken> RefreshTokens { get; set; } = null!;
         public DbSet<AccountDeleteToken> DeleteTokens { get; set; } = null!;
-
+        public DbSet<RoleChangeLog> RoleChangeLogs { get; set; } = null!;
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<Product>(entity =>
@@ -142,6 +142,35 @@ namespace InventoryManagementApi.Data
                     .HasForeignKey(d => d.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
+
+            modelBuilder.Entity<RoleChangeLog>(entity =>
+            {
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.OldRole)
+                    .HasConversion<string>()
+                    .IsRequired()
+                    .HasMaxLength(50);
+
+                entity.Property(r => r.NewRole)
+                    .HasConversion<string>()
+                    .IsRequired()
+                    .HasMaxLength(50);
+
+                entity.Property(r => r.TimeStampUtc)
+                    .IsRequired();
+
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(r => r.PromoterId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(r => r.TargetUserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
         }
     }
 }

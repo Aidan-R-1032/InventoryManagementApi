@@ -502,8 +502,38 @@ namespace InventoryManagementApi.Services
                 throw new ArgumentException("User id does not exist");
             }
 
+            // Prevent self-role changes in case of Admin locking themselve out
+            if (admin.Id == user.Id)
+            {
+                throw new InvalidOperationException("Admins cannot change their own role.");
+            }
+
+            // Prevent removing last Admin as admins are the only ones who can change roles
+            if(user.Role == UserRole.Admin && newRole != UserRole.Admin)
+            {
+                var adminCount = await _context.Users
+                    .CountAsync(u => u.Role == UserRole.Admin && !u.isDeleted);
+
+                if (adminCount <= 1)
+                {
+                    throw new ArgumentException("Cannot demote the last remaining admin!");
+                }
+            }
+
             // change the user's role
+            var oldRole = user.Role;
             user.Role = newRole;
+
+            // log the change and who made it
+            _context.RoleChangeLogs.Add(new RoleChangeLog
+            {
+                PromoterId = adminId,
+                TargetUserId = userId,
+                OldRole = oldRole,
+                NewRole = newRole,
+                TimeStampUtc = DateTime.UtcNow
+            });
+
             await _context.SaveChangesAsync();
         }
     }
