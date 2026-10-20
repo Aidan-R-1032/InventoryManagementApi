@@ -536,5 +536,74 @@ namespace InventoryManagementApi.Services
 
             await _context.SaveChangesAsync();
         }
+
+        public async Task<IEnumerable<RoleChangeLogViewerDto>> GetRoleChangeLogsAsync(
+            int amount = 20,
+            UserRole? newRole = null,
+            DateTime? begin = null, 
+            DateTime? end = null, 
+            int? promoterId = null,
+            int? targetUserId = null)
+        {
+            if (amount <= 0)
+            {
+                amount = 20;
+            }
+
+            if (amount > 100)
+            {
+                amount = 100;
+            }
+
+            IQueryable<RoleChangeLog> query = _context.RoleChangeLogs;
+
+            // search for changes to a specific role
+            if (newRole.HasValue)
+            {
+                query = query.Where(log =>
+                log.NewRole == newRole);
+            }
+
+            // search for promoter (admin) who made changes
+            if (promoterId.HasValue)
+            {
+                query = query.Where(log =>
+                    log.PromoterId == promoterId.Value);
+            }
+
+            // search for user whose role has been changed
+            if (targetUserId.HasValue)
+            {
+                query = query.Where(log =>
+                    log.TargetUserId == targetUserId.Value);
+            }
+
+            // search for changes taking place after a specified time period
+            if (begin.HasValue)
+            {
+                query = query.Where(log =>
+                    log.TimeStampUtc >= begin.Value);
+            }
+
+            // search for changes taking place before a specified time
+            if (end.HasValue)
+            {
+                query = query.Where(log =>
+                    log.TimeStampUtc <= end.Value);
+            }
+
+            return await query
+                .OrderByDescending(log => log.TimeStampUtc)
+                .Take(amount)
+                .Select(log => new RoleChangeLogViewerDto
+                {
+                    PromoterId = log.PromoterId,
+                    TargetUserId = log.TargetUserId,
+                    OldRole = log.OldRole,
+                    NewRole = log.NewRole,
+                    TimeStampUtc = log.TimeStampUtc
+                })
+                .ToListAsync();
+        }
     }
 }

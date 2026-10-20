@@ -174,6 +174,23 @@ namespace InventoryManagementApi.Endpoints
                 .RequireAuthorization("AdminOnly")
                 .RequireRateLimiting("AuthRateLimit");
 
+            group.MapGet("/audit/role-changes", async ([AsParameters] RoleChangeLogQueryDto dto, IAuthService authService) =>
+            {
+                var logs = await authService.GetRoleChangeLogsAsync(
+                        dto.Amount ?? 20,
+                        dto.NewRole,
+                        dto.Begin,
+                        dto.End,
+                        dto.PromoterId,
+                        dto.TargetUserId
+                    );
+                return Results.Ok(logs);
+            })
+                .WithName("GetRoleChangeLogs")
+                .WithSummary("View role change audit logs")
+                .RequireAuthorization("AdminOnly")
+                .RequireRateLimiting("AuthRateLimit");
+
         }
     }
 }

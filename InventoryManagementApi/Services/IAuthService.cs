@@ -17,5 +17,12 @@ namespace InventoryManagementApi.Services
         Task ConfirmDeleteAccountAsync(string token);
 
         Task AlterPermissionsAsync(int adminId, int userId, UserRole newRole);
+        Task<IEnumerable<RoleChangeLogViewerDto>> GetRoleChangeLogsAsync(
+            int amount = 20,
+            UserRole? newRole = null,
+            DateTime? begin = null,
+            DateTime? end = null,
+            int? adminId = null,
+            int? targetId = null);
     }
 }
