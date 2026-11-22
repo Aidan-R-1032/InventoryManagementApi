@@ -16,10 +16,18 @@ namespace InventoryManagementApi.Services
         Task StartDeleteProcessAsync(string email);
         Task ConfirmDeleteAccountAsync(string token);
 
-        Task AlterPermissionsAsync(int adminId, int userId, UserRole newRole);
+        Task AlterPermissionsAsync(
+            int adminId, 
+            int userId, 
+            UserRole newRole, 
+            string reason, 
+            string ipAddress
+        );
         Task<IEnumerable<RoleChangeLogViewerDto>> GetRoleChangeLogsAsync(
             int amount = 20,
+            int page = 1,
             UserRole? newRole = null,
+            UserRole? oldRole = null,
             DateTime? begin = null,
             DateTime? end = null,
             int? adminId = null,

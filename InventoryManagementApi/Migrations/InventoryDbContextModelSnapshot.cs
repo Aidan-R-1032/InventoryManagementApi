@@ -202,6 +202,10 @@ namespace InventoryManagementApi.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("IpAddress")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("NewRole")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -214,6 +218,10 @@ namespace InventoryManagementApi.Migrations
 
                     b.Property<int>("PromoterId")
                         .HasColumnType("INTEGER");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
 
                     b.Property<int>("TargetUserId")
                         .HasColumnType("INTEGER");

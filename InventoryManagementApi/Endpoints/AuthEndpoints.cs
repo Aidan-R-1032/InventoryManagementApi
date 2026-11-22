@@ -3,6 +3,7 @@ using InventoryManagementApi.Models;
 using InventoryManagementApi.Services;
 using Microsoft.AspNetCore.Http.HttpResults;
 using InventoryManagementApi.Extensions;
+using System.Xml;
 
 namespace InventoryManagementApi.Endpoints
 {
@@ -149,11 +150,17 @@ namespace InventoryManagementApi.Endpoints
 
             group.MapPost("/change-role", async (ChangeUserRoleDto dto, IAuthService authService, HttpContext ctx) =>
             {
-                var promoterId = ctx.User.GetUserId();
-
                 try
                 {
-                    await authService.AlterPermissionsAsync(promoterId, dto.UserId, dto.NewRole);
+                    var promoterId = ctx.User.GetUserId();
+                    var ipAddress = ctx.Connection.RemoteIpAddress?.ToString() ?? "Unknown";
+                    await authService.AlterPermissionsAsync(
+                        promoterId, 
+                        dto.UserId, 
+                        dto.NewRole,
+                        dto.Reason,
+                        ipAddress
+                    );
                     return Results.Ok("User role updated successfully.");
                 }
                 catch (UnauthorizedAccessException)
@@ -176,15 +183,24 @@ namespace InventoryManagementApi.Endpoints
 
             group.MapGet("/audit/role-changes", async ([AsParameters] RoleChangeLogQueryDto dto, IAuthService authService) =>
             {
-                var logs = await authService.GetRoleChangeLogsAsync(
-                        dto.Amount ?? 20,
-                        dto.NewRole,
-                        dto.Begin,
-                        dto.End,
-                        dto.PromoterId,
-                        dto.TargetUserId
-                    );
-                return Results.Ok(logs);
+                try
+                {
+                    var logs = await authService.GetRoleChangeLogsAsync(
+                            dto.Amount ?? 20,
+                            dto.Page ?? 1,
+                            dto.NewRole,
+                            dto.OldRole,
+                            dto.Begin,
+                            dto.End,
+                            dto.PromoterId,
+                            dto.TargetUserId
+                        );
+                    return Results.Ok(logs);
+                } 
+                catch (ArgumentException ex)
+                {
+                    return Results.BadRequest(ex.Message);
+                }
             })
                 .WithName("GetRoleChangeLogs")
                 .WithSummary("View role change audit logs")

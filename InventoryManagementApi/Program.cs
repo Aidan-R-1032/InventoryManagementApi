@@ -71,7 +71,7 @@ else
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
-        options.MapInboundClaims = false; // ⭐ REQUIRED ⭐
+        options.MapInboundClaims = false;
 
         options.TokenValidationParameters = new TokenValidationParameters
         {
@@ -85,8 +85,6 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             IssuerSigningKey = new SymmetricSecurityKey(
                 Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!)
             ),
-
-            // ⭐ REQUIRED FIXES ⭐
             NameClaimType = "sub",
             RoleClaimType = ClaimTypes.Role
         };

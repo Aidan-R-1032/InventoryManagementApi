@@ -478,7 +478,7 @@ namespace InventoryManagementApi.Services
             await _context.SaveChangesAsync();
         }
 
-        public async Task AlterPermissionsAsync(int adminId, int userId, UserRole newRole)
+        public async Task AlterPermissionsAsync(int adminId, int userId, UserRole newRole, string reason, string ipAddress)
         {
             // Verify that the promoter has admin privileges
             var admin = await _context.Users
@@ -531,7 +531,9 @@ namespace InventoryManagementApi.Services
                 TargetUserId = userId,
                 OldRole = oldRole,
                 NewRole = newRole,
-                TimeStampUtc = DateTime.UtcNow
+                TimeStampUtc = DateTime.UtcNow,
+                Reason = reason,
+                IpAddress = ipAddress
             });
 
             await _context.SaveChangesAsync();
@@ -539,7 +541,9 @@ namespace InventoryManagementApi.Services
 
         public async Task<IEnumerable<RoleChangeLogViewerDto>> GetRoleChangeLogsAsync(
             int amount = 20,
+            int page = 1,
             UserRole? newRole = null,
+            UserRole? oldRole = null,
             DateTime? begin = null, 
             DateTime? end = null, 
             int? promoterId = null,
@@ -564,6 +568,12 @@ namespace InventoryManagementApi.Services
                 log.NewRole == newRole);
             }
 
+            if (oldRole.HasValue)
+            {
+                query = query.Where(log => 
+                log.OldRole == oldRole);
+            }
+
             // search for promoter (admin) who made changes
             if (promoterId.HasValue)
             {
@@ -574,8 +584,19 @@ namespace InventoryManagementApi.Services
             // search for user whose role has been changed
             if (targetUserId.HasValue)
             {
+                bool exists = await _context.Users.AnyAsync(u => u.Id == targetUserId);
+                if (!exists)
+                {
+                    throw new ArgumentException("Target user does not exist.");
+                }
                 query = query.Where(log =>
                     log.TargetUserId == targetUserId.Value);
+            }
+
+            // validate bad date ranges
+            if(begin.HasValue && end.HasValue && begin > end)
+            {
+                throw new ArgumentException("Begin date must be before end date.");
             }
 
             // search for changes taking place after a specified time period
@@ -594,16 +615,36 @@ namespace InventoryManagementApi.Services
 
             return await query
                 .OrderByDescending(log => log.TimeStampUtc)
+                .Skip((page - 1) * amount)
                 .Take(amount)
-                .Select(log => new RoleChangeLogViewerDto
-                {
-                    PromoterId = log.PromoterId,
-                    TargetUserId = log.TargetUserId,
-                    OldRole = log.OldRole,
-                    NewRole = log.NewRole,
-                    TimeStampUtc = log.TimeStampUtc
-                })
-                .ToListAsync();
+                .Join(
+                    _context.Users,
+                    log => log.PromoterId,
+                    user => user.Id,
+                    (log, promoter) => new {log, promoter}
+                )
+                .Join(
+                    _context.Users,
+                    x => x.log.TargetUserId,
+                    user => user.Id,
+                    (x, target) => new RoleChangeLogViewerDto
+                    {
+                        Id = x.log.Id,
+
+                        PromoterId = x.promoter.Id,
+                        PromoterUsername = x.promoter.Username,
+
+                        TargetUserId = target.Id,
+                        TargetUsername = target.Username,
+
+                        OldRole = x.log.OldRole,
+                        NewRole = x.log.NewRole,
+
+                        TimeStampUtc = x.log.TimeStampUtc,
+                        Reason = x.log.Reason,
+                        IPAddress = x.log.IpAddress
+                    }
+                ).ToListAsync();
         }
     }
 }
