@@ -482,8 +482,7 @@ namespace InventoryManagementApi.Services
         {
             // Verify that the promoter has admin privileges
             var admin = await _context.Users
-                .Where(u => u.Id == adminId)
-                .FirstAsync();
+                .FirstOrDefaultAsync(u => u.Id == adminId);
             if(admin is null)
             {
                 throw new ArgumentException("Admin id does not exist");
@@ -495,8 +494,7 @@ namespace InventoryManagementApi.Services
 
             // verify the user to promote exists
             var user = await _context.Users
-                .Where(u => u.Id == userId)
-                .FirstAsync();
+                .FirstOrDefaultAsync(u => u.Id == userId);
             if(user is null)
             {
                 throw new ArgumentException("User id does not exist");

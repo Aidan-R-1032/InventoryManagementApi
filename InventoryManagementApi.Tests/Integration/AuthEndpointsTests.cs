@@ -17,6 +17,36 @@ namespace InventoryManagementApi.Tests.Integration
             _factory = factory;
             return factory.CreateClient();
         }
+        private async Task<string> CreateAdminAndGetToken(
+            HttpClient client,
+            string username,
+            string email
+        )
+        {
+            await client.PostAsJsonAsync(
+                "/api/auth/register",
+                new RegisterDto(username, email, "Password123!"));
+
+            using var scope = _factory.Services.CreateScope();
+
+            var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+
+            var user = await db.Users
+                .FirstAsync(u => u.Email == email);
+
+            user.Role = Models.UserRole.Admin;
+
+            await db.SaveChangesAsync();
+
+            var loginResponse = await client.PostAsJsonAsync(
+                "/api/auth/login",
+                new LoginDto(email, "Password123!"));
+
+            var token = await loginResponse.Content
+                .ReadFromJsonAsync<TokenResponseDto>();
+
+            return token!.AccessToken;
+        }
 
         [Fact]
         public async Task Register_ValidRequest_Returns200WithToken()
@@ -696,6 +726,238 @@ namespace InventoryManagementApi.Tests.Integration
             db.Entry(token).Reload();
             Assert.False(token.IsValid);
 
+        }
+
+        [Fact]
+        public async Task ChangeRole_AdminCanPromoteUser()
+        {
+            var client = CreateClient();
+
+            var adminToken = await CreateAdminAndGetToken(
+                client,
+                "adminuser",
+                "admin@example.com");
+
+            await client.PostAsJsonAsync(
+                "/api/auth/register",
+                new RegisterDto(
+                    "staffuser",
+                    "staff@example.com",
+                    "Password123!"));
+
+            using var scope = _factory.Services.CreateScope();
+
+            var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+
+            var targetUser = await db.Users
+                .FirstAsync(u => u.Email == "staff@example.com");
+
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer",
+                    adminToken);
+
+            var response = await client.PostAsJsonAsync(
+                "/api/auth/change-role",
+                new ChangeUserRoleDto(
+                    targetUser.Id,
+                    Models.UserRole.Admin,
+                    "Promotion test")
+                );
+
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            db.Entry(targetUser).Reload();
+
+            Assert.Equal(
+                Models.UserRole.Admin,
+                targetUser.Role);
+        }
+        [Fact]
+        public async Task ChangeRole_StaffUserCannotPromoteUsers()
+        {
+            var client = CreateClient();
+
+            await client.PostAsJsonAsync(
+                "/api/auth/register",
+                new RegisterDto(
+                    "staff1",
+                    "staff1@example.com",
+                    "Password123!"));
+
+            await client.PostAsJsonAsync(
+                "/api/auth/register",
+                new RegisterDto(
+                    "staff2",
+                    "staff2@example.com",
+                    "Password123!"));
+
+            var loginResponse = await client.PostAsJsonAsync(
+                "/api/auth/login",
+                new LoginDto(
+                    "staff1@example.com",
+                    "Password123!"));
+
+            var token = await loginResponse.Content
+                .ReadFromJsonAsync<TokenResponseDto>();
+
+            using var scope = _factory.Services.CreateScope();
+
+            var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+
+            var targetUser = await db.Users
+                .FirstAsync(u => u.Email == "staff2@example.com");
+
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer",
+                    token!.AccessToken);
+
+            var response = await client.PostAsJsonAsync(
+                "/api/auth/change-role",
+                new ChangeUserRoleDto
+                (
+                    targetUser.Id,
+                    Models.UserRole.Admin,
+                    "Should fail"
+                ));
+
+            Assert.Equal(
+                HttpStatusCode.Forbidden,
+                response.StatusCode);
+        }
+        [Fact]
+        public async Task ChangeRole_AnonymousUser_Returns401()
+        {
+            var client = CreateClient();
+
+            var response = await client.PostAsJsonAsync(
+                "/api/auth/change-role",
+                new ChangeUserRoleDto
+                (
+                    1,
+                    Models.UserRole.Admin,
+                    "Anonymous attempt"
+                ));
+
+            Assert.Equal(
+                HttpStatusCode.Unauthorized,
+                response.StatusCode);
+        }
+        [Fact]
+        public async Task ChangeRole_InvalidUser_Returns400()
+        {
+            var client = CreateClient();
+
+            var adminToken = await CreateAdminAndGetToken(
+                client,
+                "adminuser",
+                "admin@example.com");
+
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer",
+                    adminToken);
+
+            var response = await client.PostAsJsonAsync(
+                "/api/auth/change-role",
+                new ChangeUserRoleDto
+                (
+                    99999,
+                    Models.UserRole.Admin,
+                    "Invalid target"
+                ));
+
+            Assert.Equal(
+                HttpStatusCode.BadRequest,
+                response.StatusCode);
+        }
+        [Fact]
+        public async Task ChangeRole_CreatesAuditRecord()
+        {
+            var client = CreateClient();
+
+            var adminToken = await CreateAdminAndGetToken(
+                client,
+                "adminuser",
+                "admin@example.com");
+
+            await client.PostAsJsonAsync(
+                "/api/auth/register",
+                new RegisterDto(
+                    "audituser",
+                    "audit@example.com",
+                    "Password123!"));
+
+            using var scope = _factory.Services.CreateScope();
+
+            var db = scope.ServiceProvider.GetRequiredService<InventoryDbContext>();
+
+            var targetUser = await db.Users
+                .FirstAsync(u => u.Email == "audit@example.com");
+
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer",
+                    adminToken);
+
+            await client.PostAsJsonAsync(
+                "/api/auth/change-role",
+                new ChangeUserRoleDto
+                (
+                    targetUser.Id,
+                    Models.UserRole.Admin,
+                    "Audit test"
+                ));
+
+            var auditLog = await db.RoleChangeLogs
+                .OrderByDescending(x => x.TimeStampUtc)
+                .FirstAsync();
+
+            Assert.Equal(
+                targetUser.Id,
+                auditLog.TargetUserId);
+
+            Assert.Equal(
+                Models.UserRole.Admin,
+                auditLog.NewRole);
+
+            Assert.Equal(
+                "Audit test",
+                auditLog.Reason);
+        }
+        [Fact]
+        public async Task AuditEndpoint_NonAdmin_Returns403()
+        {
+            var client = CreateClient();
+
+            await client.PostAsJsonAsync(
+                "/api/auth/register",
+                new RegisterDto(
+                    "staffuser",
+                    "staff@example.com",
+                    "Password123!"));
+
+            var loginResponse = await client.PostAsJsonAsync(
+                "/api/auth/login",
+                new LoginDto(
+                    "staff@example.com",
+                    "Password123!"));
+
+            var token = await loginResponse.Content
+                .ReadFromJsonAsync<TokenResponseDto>();
+
+            client.DefaultRequestHeaders.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer",
+                    token!.AccessToken);
+
+            var response = await client.GetAsync(
+                "/api/auth/audit/role-changes");
+
+            Assert.Equal(
+                HttpStatusCode.Forbidden,
+                response.StatusCode);
         }
     }
 }
