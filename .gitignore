@@ -364,3 +364,25 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Angular
+
+inventory-management-ui/node_modules/
+
+inventory-management-ui/.angular/
+
+inventory-management-ui/dist/
+
+
+# Logs
+
+*.log
+
+npm-debug.log*
+
+
+# IDE files
+
+.vscode/
+
+
