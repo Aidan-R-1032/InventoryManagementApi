@@ -1,8 +1,8 @@
 import { Component } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Router } from '@angular/router';
 
-import { AuthService }
-from '../../../core/services/auth.service';
+import { AuthService } from '../../../core/services/auth.service';
 
 @Component({
   selector: 'app-login',
@@ -16,7 +16,8 @@ export class LoginComponent {
   password = '';
 
   constructor(
-    private authService: AuthService
+    private authService: AuthService,
+    private router: Router
   ) {}
 
   login(): void {
@@ -29,7 +30,7 @@ export class LoginComponent {
       next: response => {
 
         this.authService.saveToken(response);
-
+        this.router.navigate(['/products']);
         alert(
           `Logged in as ${response.username}`);
       },
